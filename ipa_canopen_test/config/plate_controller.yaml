@@ -1,19 +1,21 @@
-rig1_controller:
+plate_controller:
   type: position_controllers/JointTrajectoryController
   topic: "test"
   joints:
-    - rig1_plate_joint
+    - plate_joint
+  gains:
+    plate_joint: {p: 10.0, i: 0.0, d: 0.0, i_clamp: 0.0}
   constraints:
-    goal_time: 0.6
-    stopped_velocity_tolerance: 0.5
-    rig1_plate_joint: {trajectory: 0.1, goal: 0.1}
+      goal_time: 0.6
+      stopped_velocity_tolerance: 0.5
+      plate_joint: {trajectory: 0.1, goal: 0.1}
   stop_trajectory_duration: 0.5
   state_publish_rate:  25
   action_monitor_rate: 10
 
-rig1_joint_position_controller:
+plate_joint_position_controller:
   type: position_controllers/JointPositionController
-  joint: rig1_plate_joint
+  joint: plate_joint
 
 joint_state_controller:
     type: joint_state_controller/JointStateController
