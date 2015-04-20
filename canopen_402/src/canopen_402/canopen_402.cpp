@@ -73,6 +73,10 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 
   motorEvent(highLevelSM::enterStandBy());
 
+  control_word_bitset.get()->set(CW_Halt);
+  clearTargetEntries();
+
+  boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
   canopen::time_point abs_time = canopen::get_abs_time(boost::chrono::seconds(1));
   canopen::time_point actual_point;
 
@@ -94,13 +98,17 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
       transition_success = motorEvent(highLevelSM::checkModeSwitch(op_mode_var));
 
       motorEvent(highLevelSM::enterStandBy());
-      //return false;
     }
+    control_word_bitset.get()->reset(CW_Halt);
     valid_mode_state_ = true;
     return true;
   }
   else
+  {
+    control_word_bitset.get()->reset(CW_Halt);
+    motorEvent(highLevelSM::enterStandBy());
     return false;
+  }
 }
 
 
@@ -114,12 +122,6 @@ void Node_402::processSW(LayerStatus &status)
   *status_word_bitset = sw_new;
 
   SwCwSM.process_event(StatusandControl::newStatusWord());
-
-  //  if(*state_ == Fault)
-  //  {
-  //    bool transition_success;
-  //    transition_success =  motorEvent(highLevelSM::runMotorSM(FaultEnable)); //this is the timeout in milliseconds
-  //  }
 }
 
 void Node_402::additionalInfo(LayerStatus &s)
@@ -151,9 +153,14 @@ void Node_402::handleWrite(LayerStatus &status, const LayerState &current_state)
   {
     return;
   }
+  if(*state_ == Fault)
+  {
+    bool transition_success;
+    transition_success =  motorEvent(highLevelSM::runMotorSM(FaultEnable));
+    motorEvent(highLevelSM::enterStandBy());
+  }
   move(status);
   processCW(status);
-  motorEvent(highLevelSM::enterStandBy());
 }
 
 void Node_402::processCW(LayerStatus &status)
@@ -173,12 +180,20 @@ void Node_402::move(LayerStatus &status)
   if(*state_ == Operation_Enable)
   {
     bool transition_success = motorEvent(highLevelSM::enableMove(*operation_mode_, (*target_values_).target_pos, (*target_values_).target_vel));
-    if(transition_success)
+    //    if(transition_success)
+    //    {
+    switch(*operation_mode_)
     {
+    case Interpolated_Position:
       target_interpolated_position.set((*target_values_).target_pos);
       if (ip_mode_sub_mode.get_cached() == -1)
         target_interpolated_velocity.set((*target_values_).target_vel);
+      break;
+    case Velocity:
+      target_velocity.set((*target_values_).target_vel);
+      break;
     }
+    //    }
   }
 }
 
@@ -196,9 +211,6 @@ void Node_402::handleHalt(LayerStatus &status)
   bool transition_success;
 
   transition_success = motorEvent(highLevelSM::runMotorSM(QuickStop));
-
-  //  if(!transition_success)
-  //    status.error("Could not halt the module");
 
   motorEvent(highLevelSM::enterStandBy());
 }
@@ -348,12 +360,18 @@ void Node_402::clearTargetEntries()
   (*target_values_).target_pos = ac_pos_;
   (*target_values_).target_vel = 0;
 
-  target_interpolated_position.set((*target_values_).target_pos);
-  if (ip_mode_sub_mode.get_cached() == -1)
-    target_interpolated_velocity.set((*target_values_).target_vel);
+  if (isModeSupported(Interpolated_Position))
+  {
+    target_interpolated_position.set((*target_values_).target_pos);
+    if (ip_mode_sub_mode.get_cached() == -1)
+      target_interpolated_velocity.set((*target_values_).target_vel);
+  }
+  if(isModeSupported(Velocity))
+  {
+    target_velocity.set((*target_values_).target_vel);
+  }
 }
 
-//TODO: Implement a smaller state machine for On, Off, Fault, Halt
 bool Node_402::turnOn(LayerStatus &s)
 {
   boost::mutex::scoped_lock cond_lock(cond_mutex_);
@@ -422,7 +440,6 @@ bool Node_402::turnOn(LayerStatus &s)
       }
       transition_success = motorEvent(highLevelSM::runMotorSM(DisableQuickStop));
       motorEvent(highLevelSM::enterStandBy());
-      //return false;
     }
     motorEvent(highLevelSM::enterStandBy());
   }
@@ -476,7 +493,6 @@ bool Node_402::turnOn(LayerStatus &s)
     }
     transition_success = motorEvent(highLevelSM::runMotorSM(EnableOp));
     motorEvent(highLevelSM::enterStandBy());
-    //return false;
   }
   motorEvent(highLevelSM::enterStandBy());
 

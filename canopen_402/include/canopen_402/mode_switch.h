@@ -53,9 +53,12 @@
  *
  ****************************************************************/
 
-#ifndef IP_MODE_H
-#define IP_MODE_H
+#ifndef MODE_SWITCH_H
+#define MODE_SWITCH_H
 #include <canopen_402/status_and_control.h>
+#include <canopen_402/ip_mode.h>
+#include <canopen_402/vel_mode.h>
+#include <canopen_402/homing.h>
 ///////
 /// \brief m
 ///
@@ -71,15 +74,26 @@ using namespace boost::msm::front;
 
 namespace canopen
 {
-class IPModeSM_ : public msm::front::state_machine_def<IPModeSM_>
+class ModeSwitchSM_ : public msm::front::state_machine_def<ModeSwitchSM_>
 {
 public:
-  IPModeSM_(){}
-  IPModeSM_(const boost::shared_ptr<cw_word> &control_word) : control_word_(control_word){}
-  struct enableIP {};
-  struct disableIP {};
-  struct selectMode {};
-  struct deselectMode {};
+  ModeSwitchSM_(){}
+  ModeSwitchSM_(const boost::shared_ptr<IPModeSM> &ip_machine, const boost::shared_ptr<velModeSM> &vel_machine, const boost::shared_ptr<HomingSM> &homing_machine /*, const boost::shared_ptr<velModeSM> &vel_machine,*/)
+    : ip_machine_(ip_machine), vel_machine_(vel_machine), homing_machine_(homing_machine){}
+
+  struct selectIP {};
+  struct selectPP {};
+  struct selectPV {};
+  struct selectVel {};
+  struct selectHoming {};
+
+  struct deactivateMode
+  {
+    OperationMode op_mode;
+
+    deactivateMode() : op_mode(No_Mode) {}
+    deactivateMode( OperationMode mode) : op_mode(mode){}
+  };
 
   template <class Event,class FSM>
   void on_entry(Event const&,FSM& ) {/*std::cout << "entering: IPMode" << std::endl;*/}
@@ -87,7 +101,7 @@ public:
   void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: IPMode" << std::endl;*/}
 
   // The list of FSM states
-  struct IPInactive : public msm::front::state<>
+  struct PVMode : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
@@ -95,7 +109,7 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
 
   };
-  struct IPActive : public msm::front::state<>
+  struct IPMode : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPActive" << std::endl;*/}
@@ -104,7 +118,7 @@ public:
   };
 
   // The list of FSM states
-  struct modeDeselected : public msm::front::state<>
+  struct noActiveMode : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: modeDeselected" << std::endl;*/}
@@ -112,7 +126,23 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: modeDeselected" << std::endl;*/}
 
   };
-  struct modeSelected : public msm::front::state<>
+  struct PPMode : public msm::front::state<>
+  {
+    template <class Event,class FSM>
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: modeSelected" << std::endl;*/}
+    template <class Event,class FSM>
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: modeSelected" << std::endl;*/}
+  };
+
+  struct velMode : public msm::front::state<>
+  {
+    template <class Event,class FSM>
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: modeSelected" << std::endl;*/}
+    template <class Event,class FSM>
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: modeSelected" << std::endl;*/}
+  };
+
+  struct homingMode : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: modeSelected" << std::endl;*/}
@@ -121,57 +151,76 @@ public:
   };
 
   // the initial state. Must be defined
-  typedef modeDeselected initial_state;
-  // transition actions
-  void enable_ip(enableIP const&)
+  typedef noActiveMode initial_state;
+  // transition actionss
+  void select_pp(selectPP const&)
   {
-    control_word_->set(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
-    std::cout << "IPMode::enable_ip\n";
-  }
-  void disable_ip(disableIP const&)
-  {
-    control_word_->reset(CW_Operation_mode_specific0); //TODO: for the moment IP remains enable to avoid the breaks to be active
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
-    std::cout << "IPMode::disable_ip\n";
+    //    std::cout << "IPMode::selectMode\n";
   }
 
-  void select_mode(selectMode const&)
+  void select_pv(selectPV const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
-    std::cout << "IPMode::selectMode\n";
+    //    std::cout << "IPMode::selectMode\n";
   }
-  void deselect_mode(deselectMode const&)
-  {
-    std::cout << "IPMode::deselectMode\n";
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
 
-    std::cout << *control_word_ << std::endl;
+  void select_vel(selectVel const&)
+  {
+    std::cout << "ModeSwitch::selectvel\n";
+    vel_machine_.get()->process_event(velModeSM::selectMode());
+  }
+
+  void select_ip(selectIP const&)
+  {
+    std::cout << "ModeSwitch::selectip\n";
+    ip_machine_.get()->process_event(IPModeSM::selectMode());
+  }
+
+
+  void select_homing(selectHoming const&)
+  {
+    std::cout << "ModeSwitch::selecthoming\n";
+    homing_machine_.get()->process_event(HomingSM::selectMode());
+  }
+
+  void deselect_mode(deactivateMode const& evt)
+  {
+    switch(evt.op_mode)
+    {
+    case Interpolated_Position:
+      (*ip_machine_).process_event(IPModeSM::disableIP());
+      ip_machine_.get()->process_event(IPModeSM::deselectMode());
+      break;
+
+    case Velocity:
+      (*vel_machine_).process_event(velModeSM::disableVel());
+      vel_machine_.get()->process_event(velModeSM::deselectMode());
+      break;
+
+    case Homing:
+      (*homing_machine_).process_event(HomingSM::disableHoming());
+      homing_machine_.get()->process_event(HomingSM::deselectMode());
+      break;
+    }
   }
   // guard conditions
 
-  typedef IPModeSM_ ip; // makes transition table cleaner
+  typedef ModeSwitchSM_ ms; // makes transition table cleaner
   // Transition table for IPMode
   struct transition_table : mpl::vector<
       //      Start     Event         Next      Action               Guard
       //    +---------+-------------+---------+---------------------+----------------------+
-      a_row < modeDeselected   , selectMode    , modeSelected   , &ip::select_mode                       >,
+      a_row < noActiveMode   , selectPP    , PPMode   , &ms::select_pp                       >,
+      a_row < noActiveMode   , selectIP    , IPMode   , &ms::select_ip                       >,
+      a_row < noActiveMode   , selectPV    , PVMode   , &ms::select_pv                       >,
+      a_row < noActiveMode   , selectVel    , velMode   , &ms::select_vel                       >,
+      a_row < noActiveMode   , selectHoming    , homingMode   , &ms::select_homing                       >,
 
-      Row < modeSelected   , none    , IPInactive   , none, none                       >,
-      a_row < modeSelected   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
-
-      a_row < IPActive   , disableIP, IPInactive   , &ip::disable_ip                      >,
-      a_row < IPActive   , enableIP    , IPActive   , &ip::enable_ip                       >,
-      a_row < IPActive   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
-
-      a_row < IPInactive   , enableIP    , IPActive   , &ip::enable_ip                       >,
-      a_row < IPInactive   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >
+      a_row < PPMode   , deactivateMode    , noActiveMode   , &ms::deselect_mode                       >,
+      a_row < IPMode   , deactivateMode    , noActiveMode   , &ms::deselect_mode                       >,
+      a_row < PVMode   , deactivateMode    , noActiveMode   , &ms::deselect_mode                       >,
+      a_row < noActiveMode   , deactivateMode    , noActiveMode   , &ms::deselect_mode                       >,
+      a_row < velMode   , deactivateMode    , noActiveMode   , &ms::deselect_mode                       >,
+      a_row < homingMode   , deactivateMode    , noActiveMode   , &ms::deselect_mode                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.
@@ -182,13 +231,15 @@ public:
     //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
-  boost::shared_ptr<cw_word> control_word_;
+  boost::shared_ptr<IPModeSM> ip_machine_;
+  boost::shared_ptr<velModeSM> vel_machine_;
+  boost::shared_ptr<HomingSM> homing_machine_;
 
 };
 // back-end
-typedef msm::back::state_machine<IPModeSM_> IPModeSM;
+typedef msm::back::state_machine<ModeSwitchSM_> ModeSwitchSM;
 };
 /// */
 ///
 ///
-#endif // IP_MODE_H
+#endif // MODE_SWITCH_H

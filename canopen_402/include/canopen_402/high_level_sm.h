@@ -67,8 +67,7 @@
 #include <canopen_402/enums_402.h>
 #include <canopen_402/internal_sm.h>
 #include <canopen_402/status_and_control.h>
-#include <canopen_402/ip_mode.h>
-#include <canopen_402/homing.h>
+#include <canopen_402/mode_switch.h>
 #include <boost/thread/thread.hpp>
 
 namespace msm = boost::msm;
@@ -90,11 +89,17 @@ public:
     motorStateMachine.start();
     motorStateMachine.process_event(motorSM::boot());
 
-    homingMachine = HomingSM(control_word_, status_word_);
-    homingMachine.start();
+    homingModeMachine_ = boost::make_shared<HomingSM>(HomingSM(control_word_, status_word_));
+    homingModeMachine_.get()->start();
 
-    ipModeMachine = IPMode(control_word_);
-    ipModeMachine.start();
+    velModeMachine_ = boost::make_shared<velModeSM>(velModeSM(control_word_));
+    velModeMachine_.get()->start();
+
+    ipModeMachine_ = boost::make_shared<IPModeSM>(IPModeSM(control_word_));
+    ipModeMachine_.get()->start();
+
+    modeSwitchMachine = ModeSwitchSM(ipModeMachine_, velModeMachine_, homingModeMachine_);
+    modeSwitchMachine.start();
   }
   struct startMachine {};
   struct stopMachine {};
@@ -133,8 +138,7 @@ public:
   };
 
   motorSM motorStateMachine;
-  IPMode ipModeMachine;
-  HomingSM homingMachine;
+  ModeSwitchSM modeSwitchMachine;
 
   // The list of FSM states
   struct StartUp : public msm::front::state<>
@@ -196,7 +200,7 @@ public:
     switch(evt.action)
     {
     case QuickStop:
-      ipModeMachine.process_event(IPMode::deselectMode());
+      ipModeMachine_.get()->process_event(IPModeSM::deselectMode());
       motorStateMachine.process_event(motorSM::quick_stop());
       if(*state_ != Quick_Stop_Active)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
@@ -227,7 +231,7 @@ public:
       break;
 
     case FaultEnable:
-      ipModeMachine.process_event(IPMode::deselectMode());
+      ipModeMachine_.get()->process_event(IPModeSM::deselectMode());
       motorStateMachine.process_event(motorSM::fault());
       if(*state_ != Fault)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
@@ -254,12 +258,25 @@ public:
 
     switch(evt.op_mode)
     {
-    case Interpolated_Position:
-      ipModeMachine.process_event(IPMode::selectMode());
+    case No_Mode:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       break;
+
+    case Interpolated_Position:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
+      std::cout << "MODE SWITCH IP" << std::endl;
+      break;
+
+    case Velocity:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
+      break;
+
     case Homing:
-      homingMachine.process_event(HomingSM::selectMode());
-      bool transition_sucess = homingMachine.process_event(HomingSM::runHomingCheck());
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
+      bool transition_sucess =homingModeMachine_.get()->process_event(HomingSM::runHomingCheck());
       if(!transition_sucess)
       {
         BOOST_THROW_EXCEPTION(std::invalid_argument("Homing still not completed"));
@@ -270,13 +287,22 @@ public:
 
   template <class enableMove> void move(enableMove const& evt)
   {
-    //    std::cout << "OnSm::drive" << std::endl;
-    switch(evt.op_mode)
+    switch(*operation_mode_)
     {
     case Interpolated_Position:
-      ipModeMachine.process_event(IPMode::selectMode());
+      modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
+      ipModeMachine_.get()->process_event(IPModeSM::enableIP());
+      break;
 
-      ipModeMachine.process_event(IPMode::enableIP());
+    case Velocity:
+      modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
+      velModeMachine_.get()->process_event(velModeSM::enableVel());
+      break;
+
+    case Homing:
+      modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
+      velModeMachine_.get()->process_event(HomingSM::enableHoming());
+      break;
     }
   }
 
@@ -323,8 +349,9 @@ public:
 
   void stop_machine(stopMachine const&)
   {
-    ipModeMachine.process_event(IPMode::disableIP());
-    ipModeMachine.process_event(IPMode::deselectMode());
+    modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+    ipModeMachine_.get()->process_event(IPModeSM::disableIP());
+    ipModeMachine_.get()->process_event(IPModeSM::deselectMode());
   }
   // guard conditions
 
@@ -386,6 +413,9 @@ private:
   boost::shared_ptr<StatusandControl::commandTargets> targets_;
   OperationMode previous_mode_;
 
+  boost::shared_ptr<IPModeSM> ipModeMachine_;
+  boost::shared_ptr<HomingSM> homingModeMachine_;
+  boost::shared_ptr<velModeSM> velModeMachine_;
 };
 // back-end
 typedef msm::back::state_machine<highLevelSM_> highLevelSM;
