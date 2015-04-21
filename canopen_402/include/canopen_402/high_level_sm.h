@@ -206,7 +206,7 @@ public:
     switch(evt.action)
     {
     case QuickStop:
-      ipModeMachine_.get()->process_event(IPModeSM::deselectMode());
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       motorStateMachine.process_event(motorSM::quick_stop());
       if(*state_ != Quick_Stop_Active)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
@@ -237,7 +237,7 @@ public:
       break;
 
     case FaultEnable:
-      ipModeMachine_.get()->process_event(IPModeSM::deselectMode());
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       motorStateMachine.process_event(motorSM::fault());
       if(*state_ != Fault)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
@@ -250,16 +250,16 @@ public:
       break;
 
     default:
-      std::cout << "Action not specified" << std::endl;
+      BOOST_THROW_EXCEPTION(std::invalid_argument("Action not specified"));
     }
   }
 
   template <class checkModeSwitch> void mode_switch(checkModeSwitch const& evt)
   {
-    if(*operation_mode_ != evt.op_mode)
+    if(*operation_mode_ != evt.op_mode && evt.op_mode != No_Mode)
     {
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
-      previous_mode_ = *operation_mode_;
     }
 
     switch(evt.op_mode)
@@ -272,7 +272,6 @@ public:
     case Interpolated_Position:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
-      std::cout << "MODE SWITCH IP" << std::endl;
       break;
 
     case Velocity:
@@ -282,7 +281,7 @@ public:
 
     case Profiled_Velocity:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
-      modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
+      modeSwitchMachine.process_event(ModeSwitchSM::selectPV());
       break;
 
     case Profiled_Position:
@@ -293,7 +292,7 @@ public:
     case Homing:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
-      transition_sucess=homingModeMachine_.get()->process_event(HomingSM::runHomingCheck());
+      transition_sucess = homingModeMachine_.get()->process_event(HomingSM::runHomingCheck());
       if(!transition_sucess)
       {
         BOOST_THROW_EXCEPTION(std::invalid_argument("Homing still not completed"));
@@ -304,6 +303,8 @@ public:
       BOOST_THROW_EXCEPTION(std::invalid_argument("Mode not supported"));
       break;
     }
+
+    previous_mode_ = *operation_mode_;
   }
 
   template <class enableMove> void move(enableMove const& evt)
@@ -311,19 +312,27 @@ public:
     switch(*operation_mode_)
     {
     case Interpolated_Position:
-      modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
       ipModeMachine_.get()->process_event(IPModeSM::enableIP());
       break;
 
     case Velocity:
-      modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
       velModeMachine_.get()->process_event(velModeSM::enableVel());
       break;
 
     case Homing:
-      modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
-      velModeMachine_.get()->process_event(HomingSM::enableHoming());
+      homingModeMachine_.get()->process_event(HomingSM::enableHoming());
       break;
+
+    case Profiled_Position:
+      ppModeMachine_.get()->process_event(ppModeSM::enablePP());
+      break;
+
+    case Profiled_Velocity:
+      pvModeMachine_.get()->process_event(pvModeSM::enablePV());
+      break;
+
+    default:
+      BOOST_THROW_EXCEPTION(std::invalid_argument("Mode not supported"));
     }
   }
 
@@ -371,8 +380,6 @@ public:
   void stop_machine(stopMachine const&)
   {
     modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
-    ipModeMachine_.get()->process_event(IPModeSM::disableIP());
-    ipModeMachine_.get()->process_event(IPModeSM::deselectMode());
   }
   // guard conditions
 

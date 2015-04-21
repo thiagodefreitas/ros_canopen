@@ -262,7 +262,7 @@ public:
       Row < Operation_Enable_State , fault  , Fault_State    , none, none              >,
       //  +---------+-------------+---------+---------------------+----------------------+
       a_row < Quick_Stop_State, enable_op , Operation_Enable_State, &m::operate               >,
-      a_row < Quick_Stop_State, disable_voltage , Ready_To_Switch_On_State, &m::turn_off               >,
+      a_row < Quick_Stop_State, disable_voltage , Switch_On_Disabled_State, &m::turn_off               >,
       Row < Quick_Stop_State , fault  , Fault_State    , none, none              >,
 
       a_row < Fault_State , fault_reset  , Switch_On_Disabled_State    , &m::reset_fault    >

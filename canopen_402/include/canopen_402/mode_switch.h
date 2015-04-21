@@ -158,13 +158,13 @@ public:
   // transition actionss
   void select_pp(selectPP const&)
   {
-    std::cout << "PPMode::selectMode\n";
+    std::cout << "ModeSwitch::selectPP\n";
     pp_machine_.get()->process_event(ppModeSM::selectMode());
   }
 
   void select_pv(selectPV const&)
   {
-    std::cout << "PVMode::selectMode\n";
+    std::cout << "ModeSwitch::selectPV\n";
     pv_machine_.get()->process_event(pvModeSM::selectMode());
   }
 

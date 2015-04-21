@@ -132,7 +132,7 @@ public:
   }
   void disable_ip(disableIP const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0); //TODO: for the moment IP remains enable to avoid the breaks to be active
+    control_word_->reset(CW_Operation_mode_specific0);
     control_word_->reset(CW_Operation_mode_specific1);
     control_word_->reset(CW_Operation_mode_specific2);
     std::cout << "IPMode::disable_ip\n";
@@ -151,8 +151,6 @@ public:
     control_word_->reset(CW_Operation_mode_specific0);
     control_word_->reset(CW_Operation_mode_specific1);
     control_word_->reset(CW_Operation_mode_specific2);
-
-    std::cout << *control_word_ << std::endl;
   }
   // guard conditions
 

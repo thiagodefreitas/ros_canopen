@@ -129,24 +129,26 @@ public:
     control_word_->set(CW_Operation_mode_specific0);
     control_word_->set(CW_Operation_mode_specific1);
     control_word_->set(CW_Operation_mode_specific2);
-    std::cout << "pvMode::enable_pv\n";
+    std::cout << "pvMode::enable_pvINtern\n";
   }
   void disable_pv(disablePV const&)
   {
     control_word_->reset(CW_Operation_mode_specific0);
     control_word_->reset(CW_Operation_mode_specific1);
     control_word_->reset(CW_Operation_mode_specific2);
+    std::cout << "pvMode::disable_pvIntern\n";
   }
 
   void select_mode(selectMode const&)
   {
-    //    std::cout << "PVMode::selectMode\n";
+    std::cout << "PVMode::selectModeINtern\n";
   }
   void deselect_mode(deselectMode const&)
   {
     control_word_->reset(CW_Operation_mode_specific0);
     control_word_->reset(CW_Operation_mode_specific1);
     control_word_->reset(CW_Operation_mode_specific2);
+    std::cout << "pvMode::deselect_pvINtern\n";
   }
   // guard conditions
 

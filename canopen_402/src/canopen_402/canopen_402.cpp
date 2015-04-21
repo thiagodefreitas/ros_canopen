@@ -75,16 +75,18 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 
   if(op_mode_var!=OperationMode(Homing))
     control_word_bitset.get()->set(CW_Halt); //condition
-  clearTargetEntries();
 
   boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
+
+  clearTargetEntries();
   canopen::time_point abs_time = canopen::get_abs_time(boost::chrono::seconds(1));
   canopen::time_point actual_point;
 
   valid_mode_state_ = false;
 
-  if (isModeSupported(op_mode_var))
+  if (isModeSupported(op_mode_var) || op_mode_var == OperationMode(No_Mode))
   {
+
     op_mode.set_cached(op_mode_var);
 
     bool transition_success = motorEvent(highLevelSM::checkModeSwitch(op_mode_var));
