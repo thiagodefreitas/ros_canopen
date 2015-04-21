@@ -53,8 +53,8 @@
  *
  ****************************************************************/
 
-#ifndef VEL_MODE_H
-#define VEL_MODE_H
+#ifndef pv_MODE_H
+#define pv_MODE_H
 
 #include <canopen_402/status_and_control.h>
 ///////
@@ -62,7 +62,7 @@
 ///
 ///
 ///
-// the vel mode state machine
+// the pv mode state machine
 namespace msm = boost::msm;
 namespace mpl = boost::mpl;
 
@@ -72,36 +72,36 @@ using namespace boost::msm::front;
 
 namespace canopen
 {
-class velModeSM_ : public msm::front::state_machine_def<velModeSM_>
+class pvModeSM_ : public msm::front::state_machine_def<pvModeSM_>
 {
 public:
-  velModeSM_(){}
-  velModeSM_(const boost::shared_ptr<cw_word> &control_word) : control_word_(control_word){}
-  struct enableVel {};
-  struct disableVel {};
+  pvModeSM_(){}
+  pvModeSM_(const boost::shared_ptr<cw_word> &control_word) : control_word_(control_word){}
+  struct enablePV {};
+  struct disablePV {};
   struct selectMode {};
   struct deselectMode {};
 
   template <class Event,class FSM>
-  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: PPMode" << std::endl;*/}
+  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: PVMode" << std::endl;*/}
   template <class Event,class FSM>
-  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: PPMode" << std::endl;*/}
+  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: PVMode" << std::endl;*/}
 
   // The list of FSM states
-  struct velInactive : public msm::front::state<>
+  struct pvInactive : public msm::front::state<>
   {
     template <class Event,class FSM>
-    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: PPInactive" << std::endl;*/}
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: PVInactive" << std::endl;*/}
     template <class Event,class FSM>
-    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: PPInactive" << std::endl;*/}
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: PVInactive" << std::endl;*/}
 
   };
-  struct velActive : public msm::front::state<>
+  struct pvActive : public msm::front::state<>
   {
     template <class Event,class FSM>
-    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: PPActive" << std::endl;*/}
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: PVInactive" << std::endl;*/}
     template <class Event,class FSM>
-    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: PPActive" << std::endl;*/}
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: PVInactive" << std::endl;*/}
   };
 
   // The list of FSM states
@@ -124,14 +124,14 @@ public:
   // the initial state. Must be defined
   typedef modeDeselected initial_state;
   // transition actions
-  void enable_vel(enableVel const&)
+  void enable_pv(enablePV const&)
   {
     control_word_->set(CW_Operation_mode_specific0);
     control_word_->set(CW_Operation_mode_specific1);
     control_word_->set(CW_Operation_mode_specific2);
-    std::cout << "VelMode::enable_vel\n";
+    std::cout << "pvMode::enable_pv\n";
   }
-  void disable_vel(disableVel const&)
+  void disable_pv(disablePV const&)
   {
     control_word_->reset(CW_Operation_mode_specific0);
     control_word_->reset(CW_Operation_mode_specific1);
@@ -140,7 +140,7 @@ public:
 
   void select_mode(selectMode const&)
   {
-    //    std::cout << "PPMode::selectMode\n";
+    //    std::cout << "PVMode::selectMode\n";
   }
   void deselect_mode(deselectMode const&)
   {
@@ -150,21 +150,21 @@ public:
   }
   // guard conditions
 
-  typedef velModeSM_ vel; // makes transition table cleaner
-  // Transition table for PPMode
+  typedef pvModeSM_ pv; // makes transition table cleaner
+  // Transition table for PVMode
   struct transition_table : mpl::vector<
       //      Start     Event         Next      Action               Guard
       //    +---------+-------------+---------+---------------------+----------------------+
-      a_row < modeDeselected   , selectMode    , modeSelected   , &vel::select_mode                       >,
+      a_row < modeDeselected   , selectMode    , modeSelected   , &pv::select_mode                       >,
 
-      Row < modeSelected   , none    , velInactive   , none, none                       >,
-      a_row < modeSelected   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >,
+      Row < modeSelected   , none    , pvInactive   , none, none                       >,
+      a_row < modeSelected   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >,
 
-      a_row < velActive   , disableVel, velInactive   , &vel::disable_vel                      >,
-      a_row < velActive   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >,
+      a_row < pvActive   , disablePV, pvInactive   , &pv::disable_pv                      >,
+      a_row < pvActive   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >,
 
-      a_row < velInactive   , enableVel    , velActive   , &vel::enable_vel                       >,
-      a_row < velInactive   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >
+      a_row < pvInactive   , enablePV    , pvActive   , &pv::enable_pv                       >,
+      a_row < pvInactive   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.
@@ -179,10 +179,10 @@ private:
 
 };
 // back-end
-typedef msm::back::state_machine<velModeSM_> velModeSM;
+typedef msm::back::state_machine<pvModeSM_> pvModeSM;
 };
 /// */
 ///
 ///
 ///
-#endif // VEL_MODE_H
+#endif // pv_MODE_H

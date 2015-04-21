@@ -98,7 +98,13 @@ public:
     ipModeMachine_ = boost::make_shared<IPModeSM>(IPModeSM(control_word_));
     ipModeMachine_.get()->start();
 
-    modeSwitchMachine = ModeSwitchSM(ipModeMachine_, velModeMachine_, homingModeMachine_);
+    ppModeMachine_ = boost::make_shared<ppModeSM>(ppModeSM(control_word_));
+    ppModeMachine_.get()->start();
+
+    pvModeMachine_ = boost::make_shared<pvModeSM>(pvModeSM(control_word_));
+    pvModeMachine_.get()->start();
+
+    modeSwitchMachine = ModeSwitchSM(ipModeMachine_, velModeMachine_, homingModeMachine_, pvModeMachine_, ppModeMachine_);
     modeSwitchMachine.start();
   }
   struct startMachine {};
@@ -258,6 +264,7 @@ public:
 
     switch(evt.op_mode)
     {
+    bool transition_sucess;
     case No_Mode:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       break;
@@ -273,14 +280,28 @@ public:
       modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
       break;
 
+    case Profiled_Velocity:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
+      break;
+
+    case Profiled_Position:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectPP());
+      break;
+
     case Homing:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
-      bool transition_sucess =homingModeMachine_.get()->process_event(HomingSM::runHomingCheck());
+      transition_sucess=homingModeMachine_.get()->process_event(HomingSM::runHomingCheck());
       if(!transition_sucess)
       {
         BOOST_THROW_EXCEPTION(std::invalid_argument("Homing still not completed"));
       }
+      break;
+
+    default:
+      BOOST_THROW_EXCEPTION(std::invalid_argument("Mode not supported"));
       break;
     }
   }
@@ -416,6 +437,8 @@ private:
   boost::shared_ptr<IPModeSM> ipModeMachine_;
   boost::shared_ptr<HomingSM> homingModeMachine_;
   boost::shared_ptr<velModeSM> velModeMachine_;
+  boost::shared_ptr<ppModeSM> ppModeMachine_;
+  boost::shared_ptr<pvModeSM> pvModeMachine_;
 };
 // back-end
 typedef msm::back::state_machine<highLevelSM_> highLevelSM;

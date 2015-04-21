@@ -73,7 +73,7 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 
   motorEvent(highLevelSM::enterStandBy());
 
-  control_word_bitset.get()->set(CW_Halt);
+  control_word_bitset.get()->set(CW_Halt); //condition
   clearTargetEntries();
 
   boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
@@ -191,6 +191,12 @@ void Node_402::move(LayerStatus &status)
       break;
     case Velocity:
       target_velocity.set((*target_values_).target_vel);
+      break;
+    case Profiled_Velocity:
+      target_profiled_velocity.set((*target_values_).target_vel);
+      break;
+    case Profiled_Position:
+      target_position.set((*target_values_).target_pos);
       break;
     }
     //    }
@@ -354,9 +360,11 @@ void Node_402::configureModeSpecificEntries()
   {
     n_->getStorage()->entry(homing_method, 0x6098);
   }
+
 }
 void Node_402::clearTargetEntries()
 {
+
   (*target_values_).target_pos = ac_pos_;
   (*target_values_).target_vel = 0;
 
@@ -369,6 +377,14 @@ void Node_402::clearTargetEntries()
   if(isModeSupported(Velocity))
   {
     target_velocity.set((*target_values_).target_vel);
+  }
+  if(isModeSupported(Profiled_Velocity))
+  {
+    target_profiled_velocity.set((*target_values_).target_vel);
+  }
+  if(isModeSupported(Profiled_Position))
+  {
+    target_position.set((*target_values_).target_pos);
   }
 }
 

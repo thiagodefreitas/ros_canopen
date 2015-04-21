@@ -62,7 +62,7 @@
 ///
 ///
 ///
-// the ip mode state machine
+// the homing mode state machine
 namespace msm = boost::msm;
 namespace mpl = boost::mpl;
 
@@ -91,25 +91,25 @@ public:
   struct runHomingCheck {};
 
   template <class Event,class FSM>
-  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: IPMode" << std::endl;*/}
+  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: homingMode" << std::endl;*/}
   template <class Event,class FSM>
-  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: IPMode" << std::endl;*/}
+  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: homingMode" << std::endl;*/}
 
   // The list of FSM states
   struct HomingInactive : public msm::front::state<>
   {
     template <class Event,class FSM>
-    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: homingInactive" << std::endl;*/}
     template <class Event,class FSM>
-    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: homingInactive" << std::endl;*/}
 
   };
   struct HomingActive : public msm::front::state<>
   {
     template <class Event,class FSM>
-    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPActive" << std::endl;*/}
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: homingActive" << std::endl;*/}
     template <class Event,class FSM>
-    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPActive" << std::endl;*/}
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: homingActive" << std::endl;*/}
   };
 
   // The list of FSM states
@@ -145,7 +145,7 @@ public:
     control_word_->set(CW_Operation_mode_specific0);
     control_word_->reset(CW_Operation_mode_specific1);
     control_word_->reset(CW_Operation_mode_specific2);
-    //    std::cout << "IPMode::enable_ip\n";
+    //    std::cout << "homingMode::enable_homing";
   }
   void disable_homing(disableHoming const&)
   {
@@ -155,7 +155,7 @@ public:
 
   void select_mode(selectMode const&)
   {
-    //    std::cout << "IPMode::selectMode\n";
+    //    std::cout << "homingMode::selectMode\n";
   }
 
   void update_homing(runHomingCheck const&)

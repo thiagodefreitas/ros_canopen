@@ -59,6 +59,8 @@
 #include <canopen_402/ip_mode.h>
 #include <canopen_402/vel_mode.h>
 #include <canopen_402/homing.h>
+#include <canopen_402/pv_mode.h>
+#include <canopen_402/pp_mode.h>
 ///////
 /// \brief m
 ///
@@ -78,8 +80,9 @@ class ModeSwitchSM_ : public msm::front::state_machine_def<ModeSwitchSM_>
 {
 public:
   ModeSwitchSM_(){}
-  ModeSwitchSM_(const boost::shared_ptr<IPModeSM> &ip_machine, const boost::shared_ptr<velModeSM> &vel_machine, const boost::shared_ptr<HomingSM> &homing_machine /*, const boost::shared_ptr<velModeSM> &vel_machine,*/)
-    : ip_machine_(ip_machine), vel_machine_(vel_machine), homing_machine_(homing_machine){}
+  ModeSwitchSM_(const boost::shared_ptr<IPModeSM> &ip_machine, const boost::shared_ptr<velModeSM> &vel_machine,
+                const boost::shared_ptr<HomingSM> &homing_machine , const boost::shared_ptr<pvModeSM> &pv_machine, const boost::shared_ptr<ppModeSM> &pp_machine)
+    : ip_machine_(ip_machine), vel_machine_(vel_machine), homing_machine_(homing_machine), pv_machine_(pv_machine), pp_machine_(pp_machine){}
 
   struct selectIP {};
   struct selectPP {};
@@ -96,9 +99,9 @@ public:
   };
 
   template <class Event,class FSM>
-  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: IPMode" << std::endl;*/}
+  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: MODESWITCH" << std::endl;*/}
   template <class Event,class FSM>
-  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: IPMode" << std::endl;*/}
+  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: MODESWITCH" << std::endl;*/}
 
   // The list of FSM states
   struct PVMode : public msm::front::state<>
@@ -155,12 +158,14 @@ public:
   // transition actionss
   void select_pp(selectPP const&)
   {
-    //    std::cout << "IPMode::selectMode\n";
+    std::cout << "PPMode::selectMode\n";
+    pp_machine_.get()->process_event(ppModeSM::selectMode());
   }
 
   void select_pv(selectPV const&)
   {
-    //    std::cout << "IPMode::selectMode\n";
+    std::cout << "PVMode::selectMode\n";
+    pv_machine_.get()->process_event(pvModeSM::selectMode());
   }
 
   void select_vel(selectVel const&)
@@ -200,12 +205,22 @@ public:
       (*homing_machine_).process_event(HomingSM::disableHoming());
       homing_machine_.get()->process_event(HomingSM::deselectMode());
       break;
+
+    case Profiled_Velocity:
+      (*pv_machine_).process_event(pvModeSM::disablePV());
+      pv_machine_.get()->process_event(pvModeSM::deselectMode());
+      break;
+
+    case Profiled_Position:
+      (*pp_machine_).process_event(ppModeSM::disablePP());
+      pp_machine_.get()->process_event(ppModeSM::deselectMode());
+      break;
     }
   }
   // guard conditions
 
   typedef ModeSwitchSM_ ms; // makes transition table cleaner
-  // Transition table for IPMode
+  // Transition table for Mode Switching
   struct transition_table : mpl::vector<
       //      Start     Event         Next      Action               Guard
       //    +---------+-------------+---------+---------------------+----------------------+
@@ -234,6 +249,8 @@ private:
   boost::shared_ptr<IPModeSM> ip_machine_;
   boost::shared_ptr<velModeSM> vel_machine_;
   boost::shared_ptr<HomingSM> homing_machine_;
+  boost::shared_ptr<pvModeSM> pv_machine_;
+  boost::shared_ptr<ppModeSM> pp_machine_;
 
 };
 // back-end
