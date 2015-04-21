@@ -73,7 +73,8 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 
   motorEvent(highLevelSM::enterStandBy());
 
-  control_word_bitset.get()->set(CW_Halt); //condition
+  if(op_mode_var!=OperationMode(Homing))
+    control_word_bitset.get()->set(CW_Halt); //condition
   clearTargetEntries();
 
   boost::this_thread::sleep_for(boost::chrono::milliseconds(10));

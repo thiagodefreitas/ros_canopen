@@ -183,7 +183,6 @@ public:
 
   void select_homing(selectHoming const&)
   {
-    std::cout << "ModeSwitch::selecthoming\n";
     homing_machine_.get()->process_event(HomingSM::selectMode());
   }
 
