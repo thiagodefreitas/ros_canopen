@@ -76,7 +76,7 @@ class ppModeSM_ : public msm::front::state_machine_def<ppModeSM_>
 {
 public:
   ppModeSM_(){}
-  ppModeSM_(const boost::shared_ptr<cw_word> &control_word) : control_word_(control_word){}
+  ppModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words){}
   struct enablePP {};
   struct disablePP {};
   struct selectMode {};
@@ -126,16 +126,16 @@ public:
   // transition actions
   void enable_pp(enablePP const&)
   {
-    control_word_->set(CW_Operation_mode_specific0);
-    control_word_->set(CW_Operation_mode_specific1);
-    control_word_->set(CW_Operation_mode_specific2);
+    (*words_).control_word.set(CW_Operation_mode_specific0);
+    (*words_).control_word.set(CW_Operation_mode_specific1);
+    (*words_).control_word.set(CW_Operation_mode_specific2);
     std::cout << "ppMode::enable_pp\n";
   }
   void disable_pp(disablePP const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
@@ -144,9 +144,9 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -175,7 +175,7 @@ public:
     //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
-  boost::shared_ptr<cw_word> control_word_;
+  boost::shared_ptr<StatusandControl::wordBitset> words_;
 
 };
 // back-end

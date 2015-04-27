@@ -76,7 +76,7 @@ class velModeSM_ : public msm::front::state_machine_def<velModeSM_>
 {
 public:
   velModeSM_(){}
-  velModeSM_(const boost::shared_ptr<cw_word> &control_word) : control_word_(control_word){}
+  velModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words){}
   struct enableVel {};
   struct disableVel {};
   struct selectMode {};
@@ -126,16 +126,16 @@ public:
   // transition actions
   void enable_vel(enableVel const&)
   {
-    control_word_->set(CW_Operation_mode_specific0);
-    control_word_->set(CW_Operation_mode_specific1);
-    control_word_->set(CW_Operation_mode_specific2);
+    (*words_).control_word.set(CW_Operation_mode_specific0);
+    (*words_).control_word.set(CW_Operation_mode_specific1);
+    (*words_).control_word.set(CW_Operation_mode_specific2);
     std::cout << "VelMode::enable_vel\n";
   }
   void disable_vel(disableVel const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
@@ -144,9 +144,9 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -175,7 +175,7 @@ public:
     //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
-  boost::shared_ptr<cw_word> control_word_;
+  boost::shared_ptr<StatusandControl::wordBitset> words_;
 
 };
 // back-end

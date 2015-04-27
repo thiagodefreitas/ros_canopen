@@ -75,7 +75,7 @@ class IPModeSM_ : public msm::front::state_machine_def<IPModeSM_>
 {
 public:
   IPModeSM_(){}
-  IPModeSM_(const boost::shared_ptr<cw_word> &control_word) : control_word_(control_word){}
+  IPModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words){}
   struct enableIP {};
   struct disableIP {};
   struct selectMode {};
@@ -125,32 +125,32 @@ public:
   // transition actions
   void enable_ip(enableIP const&)
   {
-    control_word_->set(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.set(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
     std::cout << "IPMode::enable_ip\n";
   }
   void disable_ip(disableIP const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
     std::cout << "IPMode::disable_ip\n";
   }
 
   void select_mode(selectMode const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
     std::cout << "IPMode::selectMode\n";
   }
   void deselect_mode(deselectMode const&)
   {
     std::cout << "IPMode::deselectMode\n";
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -180,7 +180,7 @@ public:
     //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
-  boost::shared_ptr<cw_word> control_word_;
+  boost::shared_ptr<StatusandControl::wordBitset> words_;
 
 };
 // back-end

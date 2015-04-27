@@ -61,7 +61,6 @@ void Node_402::pending(LayerStatus &status)
 {
   processSW(status);
   processCW(status);
-  additionalInfo(status);
 
   clearTargetEntries();
 }
@@ -73,12 +72,11 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 
   motorEvent(highLevelSM::enterStandBy());
 
-  if(op_mode_var!=OperationMode(Homing))
-    control_word_bitset.get()->set(CW_Halt); //condition
+//  if(op_mode_var!=OperationMode(Homing)) TODO: thiagodefreitas, CHECK THE NECESSITY FOR THIS WITH THE NEW STRUCTURE
+//    control_word_bitset.get()->set(CW_Halt); //condition
 
   boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
 
-  clearTargetEntries();
   canopen::time_point abs_time = canopen::get_abs_time(boost::chrono::seconds(1));
   canopen::time_point actual_point;
 
@@ -86,9 +84,6 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 
   if (isModeSupported(op_mode_var) || op_mode_var == OperationMode(No_Mode))
   {
-
-    op_mode.set_cached(op_mode_var);
-
     bool transition_success = motorEvent(highLevelSM::checkModeSwitch(op_mode_var));
 
     while(transition_success == boost::msm::back::HANDLED_FALSE)
@@ -102,43 +97,34 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 
       motorEvent(highLevelSM::enterStandBy());
     }
-    control_word_bitset.get()->reset(CW_Halt);
+  /*  control_word_bitset.get()->reset(CW_Halt)*/;
     valid_mode_state_ = true;
     return true;
   }
   else
   {
-    control_word_bitset.get()->reset(CW_Halt);
+//    control_word_bitset.get()->reset(CW_Halt);
     motorEvent(highLevelSM::enterStandBy());
     return false;
   }
 }
 
 
+bool Node_402::isModeSupported(const OperationMode &op_mode)
+{
+  bool transition_success = motorEvent(highLevelSM::checkModeSupport(op_mode));
+
+  return transition_success;
+}
+
 void Node_402::processSW(LayerStatus &status)
 {
   boost::mutex::scoped_lock lock(word_mutex_, boost::try_to_lock);
   if(!lock) return;
 
-  std::bitset<16> sw_new(status_word.get());
-
-  *status_word_bitset = sw_new;
-
   SwCwSM.process_event(StatusandControl::newStatusWord());
 }
 
-void Node_402::additionalInfo(LayerStatus &s)
-{
-
-  boost::mutex::scoped_lock lock(word_mutex_, boost::try_to_lock);
-  if(!lock) return;
-
-  *operation_mode_ = (OperationMode) op_mode_display.get();
-
-  ac_vel_ = actual_vel.get();
-  ac_pos_ = actual_pos.get();
-  ac_eff_ = 0; //Currently,no effort value is directly obtained from the HW
-}
 
 void Node_402::handleRead(LayerStatus &status, const LayerState &current_state)
 {
@@ -147,7 +133,6 @@ void Node_402::handleRead(LayerStatus &status, const LayerState &current_state)
     pending(status);
   }
   processSW(status);
-  additionalInfo(status);
 }
 
 void Node_402::handleWrite(LayerStatus &status, const LayerState &current_state)
@@ -156,7 +141,7 @@ void Node_402::handleWrite(LayerStatus &status, const LayerState &current_state)
   {
     return;
   }
-  if(*state_ == Fault)
+  if((*motor_feedback_).state == Fault)
   {
     bool transition_success;
     transition_success =  motorEvent(highLevelSM::runMotorSM(FaultEnable));
@@ -166,43 +151,38 @@ void Node_402::handleWrite(LayerStatus &status, const LayerState &current_state)
   processCW(status);
 }
 
+uint32_t Node_402::getModeMask(const OperationMode &op_mode)
+{
+  switch(op_mode){
+  case Profiled_Position:
+  case Velocity:
+  case Profiled_Velocity:
+  case Profiled_Torque:
+  case Interpolated_Position:
+  case Cyclic_Synchronous_Position:
+  case Cyclic_Synchronous_Velocity:
+  case Cyclic_Synchronous_Torque:
+  case Homing:
+    return (1<<(op_mode-1));
+  case No_Mode:
+    return 0;
+  }
+  return 0;
+}
+
 void Node_402::processCW(LayerStatus &status)
 {
   boost::mutex::scoped_lock lock(word_mutex_, boost::try_to_lock);
   if(!lock) return;
-
-  int16_t cw_set = static_cast<int>((*control_word_bitset).to_ulong());
-
-  control_word.set(cw_set);
 
   SwCwSM.process_event(StatusandControl::newControlWord());
 }
 
 void Node_402::move(LayerStatus &status)
 {
-  if(*state_ == Operation_Enable)
+  if((*motor_feedback_).state == Operation_Enable)
   {
     bool transition_success = motorEvent(highLevelSM::enableMove(*operation_mode_, (*target_values_).target_pos, (*target_values_).target_vel));
-    //    if(transition_success)
-    //    {
-    switch(*operation_mode_)
-    {
-    case Interpolated_Position:
-      target_interpolated_position.set((*target_values_).target_pos);
-      if (ip_mode_sub_mode.get_cached() == -1)
-        target_interpolated_velocity.set((*target_values_).target_vel);
-      break;
-    case Velocity:
-      target_velocity.set((*target_values_).target_vel);
-      break;
-    case Profiled_Velocity:
-      target_profiled_velocity.set((*target_values_).target_vel);
-      break;
-    case Profiled_Position:
-      target_position.set((*target_values_).target_pos);
-      break;
-    }
-    //    }
   }
 }
 
@@ -253,56 +233,24 @@ const OperationMode Node_402::getMode()
   return *operation_mode_;
 }
 
-bool Node_402::isModeSupported(const OperationMode &op_mode)
-{
-  return supported_modes & getModeMask(op_mode);
-}
-uint32_t Node_402::getModeMask(const OperationMode &op_mode)
-{
-  switch(op_mode){
-  case Profiled_Position:
-  case Velocity:
-  case Profiled_Velocity:
-  case Profiled_Torque:
-  case Interpolated_Position:
-  case Cyclic_Synchronous_Position:
-  case Cyclic_Synchronous_Velocity:
-  case Cyclic_Synchronous_Torque:
-  case Homing:
-    return (1<<(op_mode-1));
-  case No_Mode:
-    return 0;
-  }
-  return 0;
-}
-bool Node_402::isModeMaskRunning(const uint32_t &mask)
-{
-  return mask & getModeMask(*operation_mode_);
-}
-
 const double Node_402::getActualVel()
 {
-  return ac_vel_;
+  return (*motor_feedback_).actual_vel;
 }
 
 const double Node_402::getActualEff()
 {
-  return ac_eff_;
+  return (*motor_feedback_).actual_eff;
 }
 
 const double Node_402::getActualPos()
 {
-  return ac_pos_;
-}
-
-const double Node_402::getActualInternalPos()
-{
-  return internal_pos_;
+  return (*motor_feedback_).actual_pos;
 }
 
 void Node_402::setTargetVel(const double &target_vel)
 {
-  if (*state_ == Operation_Enable)
+  if ((*motor_feedback_).state == Operation_Enable)
   {
     (*target_values_).target_vel = target_vel;
   }
@@ -312,83 +260,18 @@ void Node_402::setTargetVel(const double &target_vel)
 
 void Node_402::setTargetPos(const double &target_pos)
 {
-  if (*state_ == Operation_Enable)
+  if ((*motor_feedback_).state == Operation_Enable)
   {
     (*target_values_).target_pos = target_pos;
   }
   else
-    (*target_values_).target_pos = ac_pos_;
+    (*target_values_).target_pos = (*motor_feedback_).actual_pos;
 }
 
-void Node_402::configureEntries()
-{
-  n_->getStorage()->entry(status_word, 0x6041);
-  n_->getStorage()->entry(control_word, 0x6040);
-
-  n_->getStorage()->entry(op_mode, 0x6060);
-  n_->getStorage()->entry(op_mode_display, 0x6061);
-  n_->getStorage()->entry(supported_drive_modes, 0x6502);
-
-  n_->getStorage()->entry(actual_vel, 0x606C);
-
-  n_->getStorage()->entry(actual_pos, 0x6064);
-}
-
-void Node_402::configureModeSpecificEntries()
-{
-  supported_modes = supported_drive_modes.get_cached();
-
-  if (isModeSupported(Profiled_Position))
-  {
-    n_->getStorage()->entry(target_position, 0x607A);
-    n_->getStorage()->entry(profile_velocity, 0x6081);
-  }
-  if (isModeSupported(Profiled_Velocity))
-  {
-    n_->getStorage()->entry(target_profiled_velocity, 0x60FF);
-  }
-  if (isModeSupported(Interpolated_Position))
-  {
-    n_->getStorage()->entry(ip_mode_sub_mode, 0x60C0);
-    n_->getStorage()->entry(target_interpolated_position, 0x60C1, 0x01);
-    if (ip_mode_sub_mode.get_cached() == -1)
-      n_->getStorage()->entry(target_interpolated_velocity, 0x60C1, 0x02);
-  }
-  if (isModeSupported(Velocity))
-  {
-    n_->getStorage()->entry(target_velocity, 0x6042);
-  }
-
-  if (isModeSupported(Homing))
-  {
-    n_->getStorage()->entry(homing_method, 0x6098);
-  }
-
-}
 void Node_402::clearTargetEntries()
 {
-
-  (*target_values_).target_pos = ac_pos_;
+  (*target_values_).target_pos = (*motor_feedback_).actual_pos;
   (*target_values_).target_vel = 0;
-
-  if (isModeSupported(Interpolated_Position))
-  {
-    target_interpolated_position.set((*target_values_).target_pos);
-    if (ip_mode_sub_mode.get_cached() == -1)
-      target_interpolated_velocity.set((*target_values_).target_vel);
-  }
-  if(isModeSupported(Velocity))
-  {
-    target_velocity.set((*target_values_).target_vel);
-  }
-  if(isModeSupported(Profiled_Velocity))
-  {
-    target_profiled_velocity.set((*target_values_).target_vel);
-  }
-  if(isModeSupported(Profiled_Position))
-  {
-    target_position.set((*target_values_).target_pos);
-  }
 }
 
 bool Node_402::turnOn(LayerStatus &s)
@@ -406,12 +289,12 @@ bool Node_402::turnOn(LayerStatus &s)
 
   motorEvent(highLevelSM::startMachine());
 
-  while(*state_ == Start)
+  while((*motor_feedback_).state == Start)
   {
     boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
   }
 
-  if(*state_ == Fault)
+  if((*motor_feedback_).state == Fault)
   {
     transition_success =  motorEvent(highLevelSM::runMotorSM(FaultEnable)); //this is the timeout in milliseconds
     motorEvent(highLevelSM::enterStandBy());
@@ -444,7 +327,7 @@ bool Node_402::turnOn(LayerStatus &s)
   }
 
 
-  if(*state_==Quick_Stop_Active)
+  if((*motor_feedback_).state==Quick_Stop_Active)
   {
     transition_success = motorEvent(highLevelSM::runMotorSM(DisableQuickStop));
     motorEvent(highLevelSM::enterStandBy());
@@ -544,21 +427,16 @@ bool Node_402::turnOff(LayerStatus &s)
 
 void Node_402::handleInit(LayerStatus &s)
 {
-  Node_402::configureModeSpecificEntries();
-
   bool turn_on = Node_402::turnOn(s);
 
   if (turn_on)
   {
-    if (homing_method.valid() && homing_method.get() != 0)
-    {
-      bool transition_success;
+    bool transition_success;
 
-      transition_success = enterModeAndWait(Homing);
-      if(!transition_success)
-      {
-        s.error("Failed to do the homing procedure");
-      }
+    transition_success = enterModeAndWait(Homing);
+    if(!transition_success)
+    {
+      s.error("Failed to do the homing procedure");
     }
   }
   else

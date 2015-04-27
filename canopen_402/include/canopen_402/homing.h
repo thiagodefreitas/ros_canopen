@@ -76,7 +76,7 @@ class HomingSM_ : public msm::front::state_machine_def<HomingSM_>
 {
 public:
   HomingSM_(){}
-  HomingSM_(const boost::shared_ptr<cw_word> &control_word, boost::shared_ptr<sw_word> status_word) : control_word_(control_word), status_word_(status_word)
+  HomingSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words)
   {
     homing_mask_.set(SW_Target_reached);
     homing_mask_.set(SW_Operation_specific0);
@@ -142,15 +142,15 @@ public:
   // transition actions
   void enable_homing(enableHoming const&)
   {
-    control_word_->set(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.set(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
     //    std::cout << "homingMode::enable_homing";
   }
   void disable_homing(disableHoming const&)
   {
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
@@ -160,9 +160,9 @@ public:
 
   void update_homing(runHomingCheck const&)
   {
-    control_word_->set(CW_Operation_mode_specific0);
+    (*words_).control_word.set(CW_Operation_mode_specific0);
 
-    switch ((*status_word_ & homing_mask_).to_ulong())
+    switch (((*words_).control_word & homing_mask_).to_ulong())
     {
     //-------------------------------------------------------------//
     // Op_specific1 | Op_specific0 | Target_reached | Description |
@@ -207,9 +207,9 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -246,8 +246,7 @@ public:
 
   }
 private:
-  boost::shared_ptr<cw_word> control_word_;
-  boost::shared_ptr<sw_word> status_word_;
+  boost::shared_ptr<StatusandControl::wordBitset> words_;
   boost::shared_ptr<HomingState> homing_state_;
 
   std::bitset<16> homing_mask_;

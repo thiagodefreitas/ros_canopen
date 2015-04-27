@@ -56,7 +56,6 @@
 #ifndef CANOPEN_402_CANOPEN_402_H
 #define CANOPEN_402_CANOPEN_402_H
 
-#include <canopen_master/canopen.h>
 #include <canopen_402/status_and_control.h>
 #include <canopen_402/ip_mode.h>
 #include <canopen_402/high_level_sm.h>
@@ -68,24 +67,17 @@ namespace canopen
 class Node_402 : public canopen::Layer
 {
 public:
-  Node_402(boost::shared_ptr <canopen::Node> n, const std::string &name) : Layer(name), n_(n), check_mode(false)
+  Node_402(boost::shared_ptr <canopen::Node> n, const std::string &name) : Layer(name), n_(n), check_mode(false), storage_(n_->getStorage())
   {
     operation_mode_ = boost::make_shared<OperationMode>(No_Mode);
-    configureEntries();
 
-    homing_mask.set(SW_Target_reached);
-    homing_mask.set(SW_Operation_specific0);
-    homing_mask.set(SW_Operation_specific1);
-
-    status_word_bitset = boost::make_shared<sw_word>();
-    control_word_bitset = boost::make_shared<cw_word>();
+    words_ = boost::make_shared<StatusandControl::wordBitset>();
 
     target_values_ = boost::make_shared<StatusandControl::commandTargets>();
+    motor_feedback_ = boost::make_shared<StatusandControl::motorFeedback>();
 
-    state_ = boost::make_shared<InternalState>(Start);
-
-    SwCwSM = StatusandControl(status_word_bitset, control_word_bitset, state_);
-    motorAbstraction = highLevelSM(control_word_bitset, status_word_bitset, target_values_, operation_mode_, state_);
+    SwCwSM = StatusandControl(words_, motor_feedback_, storage_);
+    motorAbstraction = highLevelSM(words_, target_values_, operation_mode_, motor_feedback_, storage_);
     SwCwSM.start();
     motorAbstraction.start();
     SwCwSM.process_event(StatusandControl::readStatus());
@@ -96,10 +88,9 @@ public:
   bool enterModeAndWait(const OperationMode &op_mode);
   bool isModeSupported(const OperationMode &op_mode);
   static uint32_t getModeMask(const OperationMode &op_mode);
-  bool isModeMaskRunning(const uint32_t &mask);
+
 
   const double getActualPos();
-  const double getActualInternalPos();
 
   const double getActualVel();
   const double getActualEff();
@@ -120,8 +111,9 @@ private:
   template<typename T> int wait_for(const bool &condition, const T &timeout);
 
   boost::shared_ptr <canopen::Node> n_;
+  boost::shared_ptr <ObjectStorage> storage_;
+
   volatile bool running;
-  boost::shared_ptr<InternalState> state_;
 
   bool new_target_pos_;
 
@@ -135,41 +127,11 @@ private:
 
   boost::condition_variable cond_event_;
 
-  canopen::ObjectStorage::Entry<canopen::ObjectStorage::DataType<0x006>::type >  status_word;
-  canopen::ObjectStorage::Entry<canopen::ObjectStorage::DataType<0x006>::type >  control_word;
-  canopen::ObjectStorage::Entry<int8_t>  op_mode_display;
-  canopen::ObjectStorage::Entry<int8_t>  op_mode;
-  canopen::ObjectStorage::Entry<int16_t>  ip_mode_sub_mode;
-  canopen::ObjectStorage::Entry<uint32_t>  supported_drive_modes;
-
-  canopen::ObjectStorage::Entry<int8_t>  homing_method;
-
-  canopen::ObjectStorage::Entry<int32_t> actual_vel;
-  canopen::ObjectStorage::Entry<int16_t> target_velocity;
-  canopen::ObjectStorage::Entry<uint32_t> profile_velocity;
-  canopen::ObjectStorage::Entry<int32_t> actual_pos;
-  canopen::ObjectStorage::Entry<int32_t> actual_internal_pos;
-  canopen::ObjectStorage::Entry<int32_t> target_position;
-  canopen::ObjectStorage::Entry<int32_t> target_interpolated_position;
-  canopen::ObjectStorage::Entry<int32_t> target_interpolated_velocity;
-  canopen::ObjectStorage::Entry<int32_t> target_profiled_velocity;
-
-
-  uint32_t supported_modes;
-  double ac_vel_;
-  double ac_eff_;
-
   boost::shared_ptr<OperationMode> operation_mode_;
   OperationMode operation_mode_to_set_;
   bool check_mode;
 
   bool valid_mode_state_;
-
-  double ac_pos_;
-  double internal_pos_;
-  double oldpos_;
-
-  std::bitset<16> homing_mask;
 
   boost::shared_ptr<double> target_vel_;
   boost::shared_ptr<double> target_pos_;
@@ -186,17 +148,13 @@ private:
 
   bool enter_mode_failure_;
 
-  boost::shared_ptr<canopen::sw_word> status_word_bitset;
-  boost::shared_ptr<canopen::cw_word> control_word_bitset;
-
+  boost::shared_ptr<StatusandControl::wordBitset> words_;
 
   StatusandControl SwCwSM;
   highLevelSM motorAbstraction;
 
   boost::shared_ptr<StatusandControl::commandTargets> target_values_;
-
-  void configureEntries();
-  void configureModeSpecificEntries();
+  boost::shared_ptr<StatusandControl::motorFeedback> motor_feedback_;
 
   template <class Event>
   bool motorEvent(Event const&);
@@ -211,8 +169,6 @@ private:
   virtual void processCW(LayerStatus &status);
 
   virtual void pending(LayerStatus &status);
-
-  virtual void additionalInfo(LayerStatus &status);
 
   bool turnOn(LayerStatus &status);
   bool turnOff(LayerStatus &status);

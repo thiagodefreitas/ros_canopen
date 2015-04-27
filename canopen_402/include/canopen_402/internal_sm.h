@@ -66,9 +66,8 @@ class MotorSM_ : public msm::front::state_machine_def<MotorSM_>
 {
 public:
   MotorSM_(){}
-  MotorSM_(const boost::shared_ptr<cw_word> &control_word, boost::shared_ptr<InternalState> actual_state) : control_word_(control_word), state_(actual_state)
+  MotorSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, const boost::shared_ptr<StatusandControl::motorFeedback> &motor_feedback) : words_(words), motor_feedback_(motor_feedback)
   {
-     target_state_ = boost::make_shared<InternalState>();
   }
 
   // defined events from transitioning inside the 402 state machine
@@ -153,81 +152,81 @@ public:
   // transition actions
   void shutdown_motor(shutdown const&)
   {
-    control_word_->reset(CW_Switch_On);
-    control_word_->set(CW_Enable_Voltage);
-    control_word_->set(CW_Quick_Stop);
-    control_word_->reset(CW_Fault_Reset);
-    control_word_->reset(CW_Enable_Operation);
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Switch_On);
+    (*words_).control_word.set(CW_Enable_Voltage);
+    (*words_).control_word.set(CW_Quick_Stop);
+    (*words_).control_word.reset(CW_Fault_Reset);
+    (*words_).control_word.reset(CW_Enable_Operation);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
   void turn_on(switch_on const&)
   {
-    control_word_->set(CW_Switch_On);
-    control_word_->set(CW_Enable_Voltage);
-    control_word_->set(CW_Quick_Stop);
-    control_word_->reset(CW_Fault_Reset);
-    control_word_->reset(CW_Enable_Operation);
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.set(CW_Switch_On);
+    (*words_).control_word.set(CW_Enable_Voltage);
+    (*words_).control_word.set(CW_Quick_Stop);
+    (*words_).control_word.reset(CW_Fault_Reset);
+    (*words_).control_word.reset(CW_Enable_Operation);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
   void turn_off(disable_voltage const&)
   {
-    control_word_->reset(CW_Switch_On);
-    control_word_->reset(CW_Enable_Voltage);
-    control_word_->set(CW_Quick_Stop);
-    control_word_->reset(CW_Fault_Reset);
-    control_word_->reset(CW_Enable_Operation);
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Switch_On);
+    (*words_).control_word.reset(CW_Enable_Voltage);
+    (*words_).control_word.set(CW_Quick_Stop);
+    (*words_).control_word.reset(CW_Fault_Reset);
+    (*words_).control_word.reset(CW_Enable_Operation);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
   void activate_QS(quick_stop const&)
   {
-    control_word_->reset(CW_Switch_On);
-    control_word_->set(CW_Enable_Voltage);
-    control_word_->reset(CW_Quick_Stop);
-    control_word_->reset(CW_Fault_Reset);
-    control_word_->reset(CW_Enable_Operation);
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Switch_On);
+    (*words_).control_word.set(CW_Enable_Voltage);
+    (*words_).control_word.reset(CW_Quick_Stop);
+    (*words_).control_word.reset(CW_Fault_Reset);
+    (*words_).control_word.reset(CW_Enable_Operation);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
   void operate(enable_op const&)
   {
-    control_word_->set(CW_Switch_On);
-    control_word_->set(CW_Enable_Voltage);
-    control_word_->set(CW_Quick_Stop);
-    control_word_->reset(CW_Fault_Reset);
-    control_word_->set(CW_Enable_Operation);
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.set(CW_Switch_On);
+    (*words_).control_word.set(CW_Enable_Voltage);
+    (*words_).control_word.set(CW_Quick_Stop);
+    (*words_).control_word.reset(CW_Fault_Reset);
+    (*words_).control_word.set(CW_Enable_Operation);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
   void stop_operation(disable_op const&)
   {
-    control_word_->set(CW_Switch_On);
-    control_word_->set(CW_Enable_Voltage);
-    control_word_->set(CW_Quick_Stop);
-    control_word_->reset(CW_Fault_Reset);
-    control_word_->reset(CW_Enable_Operation);
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.set(CW_Switch_On);
+    (*words_).control_word.set(CW_Enable_Voltage);
+    (*words_).control_word.set(CW_Quick_Stop);
+    (*words_).control_word.reset(CW_Fault_Reset);
+    (*words_).control_word.reset(CW_Enable_Operation);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
 
   void reset_fault(fault_reset const&)
   {
-    control_word_->set(CW_Fault_Reset);
-    control_word_->reset(CW_Switch_On);
-    control_word_->reset(CW_Enable_Voltage);
-    control_word_->reset(CW_Quick_Stop);
-    control_word_->reset(CW_Enable_Operation);
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.set(CW_Fault_Reset);
+    (*words_).control_word.reset(CW_Switch_On);
+    (*words_).control_word.reset(CW_Enable_Voltage);
+    (*words_).control_word.reset(CW_Quick_Stop);
+    (*words_).control_word.reset(CW_Enable_Operation);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
 
   // guard conditions
@@ -284,9 +283,8 @@ public:
     //fsm.process_event(disable_voltage());
   }
 private:
-  boost::shared_ptr<cw_word> control_word_;
-  boost::shared_ptr<InternalState> state_;
-  boost::shared_ptr<InternalState> target_state_;
+  boost::shared_ptr<StatusandControl::wordBitset> words_;
+  boost::shared_ptr<StatusandControl::motorFeedback> motor_feedback_;
 };
 
 

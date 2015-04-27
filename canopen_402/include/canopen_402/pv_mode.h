@@ -76,7 +76,7 @@ class pvModeSM_ : public msm::front::state_machine_def<pvModeSM_>
 {
 public:
   pvModeSM_(){}
-  pvModeSM_(const boost::shared_ptr<cw_word> &control_word) : control_word_(control_word){}
+  pvModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words){}
   struct enablePV {};
   struct disablePV {};
   struct selectMode {};
@@ -126,16 +126,16 @@ public:
   // transition actions
   void enable_pv(enablePV const&)
   {
-    control_word_->set(CW_Operation_mode_specific0);
-    control_word_->set(CW_Operation_mode_specific1);
-    control_word_->set(CW_Operation_mode_specific2);
+    (*words_).control_word.set(CW_Operation_mode_specific0);
+    (*words_).control_word.set(CW_Operation_mode_specific1);
+    (*words_).control_word.set(CW_Operation_mode_specific2);
     std::cout << "pvMode::enable_pvINtern\n";
   }
   void disable_pv(disablePV const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
     std::cout << "pvMode::disable_pvIntern\n";
   }
 
@@ -145,9 +145,9 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    (*words_).control_word.reset(CW_Operation_mode_specific0);
+    (*words_).control_word.reset(CW_Operation_mode_specific1);
+    (*words_).control_word.reset(CW_Operation_mode_specific2);
     std::cout << "pvMode::deselect_pvINtern\n";
   }
   // guard conditions
@@ -177,7 +177,7 @@ public:
     //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
-  boost::shared_ptr<cw_word> control_word_;
+  boost::shared_ptr<StatusandControl::wordBitset> words_;
 
 };
 // back-end
