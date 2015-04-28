@@ -58,7 +58,7 @@
 #include <canopen_402/status_and_control.h>
 #include <canopen_402/ip_mode.h>
 #include <canopen_402/vel_mode.h>
-#include <canopen_402/homing.h>
+#include <canopen_402/homing_mode.h>
 #include <canopen_402/pv_mode.h>
 #include <canopen_402/pp_mode.h>
 ///////

@@ -159,8 +159,6 @@ private:
   template <class Event>
   bool motorEvent(Event const&);
 
-  void clearTargetEntries();
-
   virtual void move(LayerStatus &status);
 
   virtual void processSW(LayerStatus &status);

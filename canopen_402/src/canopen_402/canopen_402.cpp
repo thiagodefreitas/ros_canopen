@@ -61,8 +61,6 @@ void Node_402::pending(LayerStatus &status)
 {
   processSW(status);
   processCW(status);
-
-  clearTargetEntries();
 }
 
 bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
@@ -268,19 +266,11 @@ void Node_402::setTargetPos(const double &target_pos)
     (*target_values_).target_pos = (*motor_feedback_).actual_pos;
 }
 
-void Node_402::clearTargetEntries()
-{
-  (*target_values_).target_pos = (*motor_feedback_).actual_pos;
-  (*target_values_).target_vel = 0;
-}
-
 bool Node_402::turnOn(LayerStatus &s)
 {
   boost::mutex::scoped_lock cond_lock(cond_mutex_);
   if(!cond_lock)
     return false;
-
-  clearTargetEntries();
 
   canopen::time_point abs_time = canopen::get_abs_time(boost::chrono::seconds(2));
   canopen::time_point actual_point;

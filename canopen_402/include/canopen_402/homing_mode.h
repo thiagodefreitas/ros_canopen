@@ -53,8 +53,8 @@
  *
  ****************************************************************/
 
-#ifndef HOMING_H
-#define HOMING_H
+#ifndef HOMING_MODE_H
+#define HOMING_MODE_H
 
 #include <canopen_402/status_and_control.h>
 ///////
@@ -258,4 +258,4 @@ typedef msm::back::state_machine<HomingSM_> HomingSM;
 /// */
 ///
 ///
-#endif // HOMING_H
+#endif // HOMING_MODE_H
