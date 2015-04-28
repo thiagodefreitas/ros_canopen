@@ -87,7 +87,8 @@ public:
     double actual_vel;
     double actual_eff;
     InternalState state;
-    motorFeedback() : actual_pos(0), actual_vel(0), actual_eff(0), state(Start) {}
+    OperationMode current_mode;
+    motorFeedback() : actual_pos(0), actual_vel(0), actual_eff(0), state(Start), current_mode(No_Mode) {}
   };
 
   struct wordBitset
@@ -104,6 +105,7 @@ public:
   {
     storage_->entry(status_word_entry_, 0x6041);
     storage_->entry(control_word_entry_, 0x6040);
+    storage_->entry(op_mode_display, 0x6061);
 
     storage_->entry(actual_vel, 0x606C);
     storage_->entry(actual_pos, 0x6064);
@@ -212,6 +214,7 @@ public:
       LOG("Motor currently in an unknown state");
     }
 
+    (*motor_feedback_).current_mode = (OperationMode) op_mode_display.get();
     (*motor_feedback_).actual_vel = actual_vel.get();
     (*motor_feedback_).actual_pos = actual_pos.get();
     (*motor_feedback_).actual_eff = 0; //Currently,no effort value is directly obtained from the HW
@@ -248,6 +251,8 @@ private:
   canopen::ObjectStorage::Entry<int32_t> actual_vel;
   canopen::ObjectStorage::Entry<int32_t> actual_pos;
   canopen::ObjectStorage::Entry<int32_t> actual_internal_pos;
+
+  canopen::ObjectStorage::Entry<int8_t>  op_mode_display;
 
 
 };

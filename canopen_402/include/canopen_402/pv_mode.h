@@ -76,7 +76,10 @@ class pvModeSM_ : public msm::front::state_machine_def<pvModeSM_>
 {
 public:
   pvModeSM_(){}
-  pvModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words){}
+  pvModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, const boost::shared_ptr<ObjectStorage> &storage) : words_(words), storage_(storage)
+  {
+    storage_->entry(target_profiled_velocity, 0x60FF);
+  }
   struct enablePV {};
   struct disablePV {};
   struct selectMode {};
@@ -178,6 +181,9 @@ public:
   }
 private:
   boost::shared_ptr<StatusandControl::wordBitset> words_;
+  boost::shared_ptr<ObjectStorage> storage_;
+
+  canopen::ObjectStorage::Entry<int32_t> target_profiled_velocity;
 
 };
 // back-end

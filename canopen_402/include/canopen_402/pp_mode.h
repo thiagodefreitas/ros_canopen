@@ -76,7 +76,11 @@ class ppModeSM_ : public msm::front::state_machine_def<ppModeSM_>
 {
 public:
   ppModeSM_(){}
-  ppModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words){}
+  ppModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, boost::shared_ptr<ObjectStorage> &storage) : words_(words), storage_(storage)
+  {
+    storage_->entry(target_position, 0x607A);
+    storage_->entry(profile_velocity, 0x6081);
+  }
   struct enablePP {};
   struct disablePP {};
   struct selectMode {};
@@ -176,6 +180,11 @@ public:
   }
 private:
   boost::shared_ptr<StatusandControl::wordBitset> words_;
+  boost::shared_ptr<ObjectStorage> storage_;
+
+  canopen::ObjectStorage::Entry<int32_t> target_position;
+  canopen::ObjectStorage::Entry<uint32_t> profile_velocity;
+
 
 };
 // back-end

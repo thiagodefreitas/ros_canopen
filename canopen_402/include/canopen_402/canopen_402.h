@@ -57,7 +57,6 @@
 #define CANOPEN_402_CANOPEN_402_H
 
 #include <canopen_402/status_and_control.h>
-#include <canopen_402/ip_mode.h>
 #include <canopen_402/high_level_sm.h>
 #include <string>
 #include <vector>
@@ -67,17 +66,15 @@ namespace canopen
 class Node_402 : public canopen::Layer
 {
 public:
-  Node_402(boost::shared_ptr <canopen::Node> n, const std::string &name) : Layer(name), n_(n), check_mode(false), storage_(n_->getStorage())
+  Node_402(boost::shared_ptr <canopen::Node> n, const std::string &name) : Layer(name), n_(n), storage_(n_->getStorage())
   {
-    operation_mode_ = boost::make_shared<OperationMode>(No_Mode);
-
     words_ = boost::make_shared<StatusandControl::wordBitset>();
 
     target_values_ = boost::make_shared<StatusandControl::commandTargets>();
     motor_feedback_ = boost::make_shared<StatusandControl::motorFeedback>();
 
     SwCwSM = StatusandControl(words_, motor_feedback_, storage_);
-    motorAbstraction = highLevelSM(words_, target_values_, operation_mode_, motor_feedback_, storage_);
+    motorAbstraction = highLevelSM(words_, target_values_, motor_feedback_, storage_);
     SwCwSM.start();
     motorAbstraction.start();
     SwCwSM.process_event(StatusandControl::readStatus());
@@ -115,11 +112,6 @@ private:
 
   volatile bool running;
 
-  bool new_target_pos_;
-
-  bool motor_ready_;
-  bool homing_needed_;
-
   boost::mutex motor_mutex_;
   boost::mutex word_mutex_;
   boost::mutex cond_mutex_;
@@ -127,26 +119,12 @@ private:
 
   boost::condition_variable cond_event_;
 
-  boost::shared_ptr<OperationMode> operation_mode_;
-  OperationMode operation_mode_to_set_;
-  bool check_mode;
-
   bool valid_mode_state_;
 
   boost::shared_ptr<double> target_vel_;
   boost::shared_ptr<double> target_pos_;
 
-  std::vector<int> control_word_buffer;
-
-  bool configure_drive_;
-
   OperationMode default_operation_mode_;
-
-  bool configuring_node_;
-
-  bool recover_active_;
-
-  bool enter_mode_failure_;
 
   boost::shared_ptr<StatusandControl::wordBitset> words_;
 

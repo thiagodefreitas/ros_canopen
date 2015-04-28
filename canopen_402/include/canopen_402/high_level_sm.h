@@ -83,38 +83,60 @@ class highLevelSM_ : public msm::front::state_machine_def<highLevelSM_>
 {
 public:
   highLevelSM_(){}
-  highLevelSM_(boost::shared_ptr<StatusandControl::wordBitset> &words,  boost::shared_ptr<StatusandControl::commandTargets> target, boost::shared_ptr<OperationMode> operation_mode,boost::shared_ptr<StatusandControl::motorFeedback> feedback, boost::shared_ptr<ObjectStorage> &storage)
-    : words_(words), targets_(target), operation_mode_(operation_mode), motor_feedback_(feedback), previous_mode_(No_Mode), storage_(storage)
+  highLevelSM_(boost::shared_ptr<StatusandControl::wordBitset> &words,  boost::shared_ptr<StatusandControl::commandTargets> target,boost::shared_ptr<StatusandControl::motorFeedback> feedback, boost::shared_ptr<ObjectStorage> &storage)
+    : words_(words), targets_(target), motor_feedback_(feedback), previous_mode_(No_Mode), storage_(storage)
   {
-
     ///////////////////*
     ///
     ///
     ///
     storage_->entry(op_mode, 0x6060);
-    storage_->entry(op_mode_display, 0x6061);
     storage_->entry(supported_drive_modes, 0x6502);
 
+    storage_->entry(homing_method, 0x6098);
+
     supported_modes_ = supported_drive_modes.get_cached();
+
+    std::cout << "Supported Modes" << supported_modes_ << std::endl;
 
     motorStateMachine = motorSM(words_, motor_feedback_);
     motorStateMachine.start();
     motorStateMachine.process_event(motorSM::boot());
 
-    homingModeMachine_ = boost::make_shared<HomingSM>(HomingSM(words_));
-    homingModeMachine_.get()->start();
+    if(isSupported(Homing))
+    {
+      std::cout << "homing is supported" << std::endl;
+      homingModeMachine_ = boost::make_shared<HomingSM>(HomingSM(words_));
+      homingModeMachine_.get()->start();
+    }
 
-    velModeMachine_ = boost::make_shared<velModeSM>(velModeSM(words_));
-    velModeMachine_.get()->start();
+    if(isSupported(Velocity))
+    {
+      std::cout << "velocity is supported" << std::endl;
+      velModeMachine_ = boost::make_shared<velModeSM>(velModeSM(words_, storage_));
+      velModeMachine_.get()->start();
+    }
 
-    ipModeMachine_ = boost::make_shared<IPModeSM>(IPModeSM(words_));
-    ipModeMachine_.get()->start();
+    if(isSupported(Interpolated_Position))
+    {
+      std::cout << "ip is supported" << std::endl;
+      ipModeMachine_ = boost::make_shared<IPModeSM>(IPModeSM(words_, storage_));
+      ipModeMachine_.get()->start();
+    }
 
-    ppModeMachine_ = boost::make_shared<ppModeSM>(ppModeSM(words_));
-    ppModeMachine_.get()->start();
+    if(isSupported(Profiled_Position))
+    {
+      std::cout << "pp is supported" << std::endl;
+      ppModeMachine_ = boost::make_shared<ppModeSM>(ppModeSM(words_, storage_));
+      ppModeMachine_.get()->start();
+    }
 
-    pvModeMachine_ = boost::make_shared<pvModeSM>(pvModeSM(words_));
-    pvModeMachine_.get()->start();
+    if(isSupported(Profiled_Velocity))
+    {
+      std::cout << "pv is supported" << std::endl;
+      pvModeMachine_ = boost::make_shared<pvModeSM>(pvModeSM(words_, storage_));
+      pvModeMachine_.get()->start();
+    }
 
     modeSwitchMachine = ModeSwitchSM(ipModeMachine_, velModeMachine_, homingModeMachine_, pvModeMachine_, ppModeMachine_);
     modeSwitchMachine.start();
@@ -138,12 +160,12 @@ public:
   };
   struct enableMove
   {
-    OperationMode op_mode;
     double pos;
     double vel;
 
-    enableMove() : op_mode(OperationMode(0)), pos(0), vel(0) {}
-    enableMove( OperationMode mode, double pos, double vel) : op_mode(mode), pos(pos), vel(vel) {}
+    enableMove() : pos(0), vel(0) {}
+    enableMove(double pos) : pos(pos), vel(0) {}
+    enableMove( double pos, double vel) : pos(pos), vel(vel) {}
   };
 
   struct checkModeSupport
@@ -219,24 +241,6 @@ public:
   {
     (*targets_).target_pos = (*motor_feedback_).actual_pos;
     (*targets_).target_vel = 0;
-
-    switch(*operation_mode_)
-    {
-    case Interpolated_Position:
-      target_interpolated_position.set((*targets_).target_pos);
-      if (ip_mode_sub_mode.get_cached() == -1)
-        target_interpolated_velocity.set((*targets_).target_vel);
-      break;
-    case Velocity:
-      target_velocity.set((*targets_).target_vel);
-      break;
-    case Profiled_Velocity:
-      target_profiled_velocity.set((*targets_).target_vel);
-      break;
-    case Profiled_Position:
-      target_position.set((*targets_).target_pos);
-      break;
-    }
   }
 
 
@@ -295,11 +299,9 @@ public:
 
   template <class checkModeSwitch> void mode_switch(checkModeSwitch const& evt)
   {
-    *operation_mode_ = (OperationMode) op_mode_display.get();
-
     op_mode.set_cached(evt.op_mode);
 
-    if(*operation_mode_ != evt.op_mode && evt.op_mode != No_Mode)
+    if((*motor_feedback_).current_mode != evt.op_mode && evt.op_mode != No_Mode)
     {
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
@@ -351,15 +353,16 @@ public:
       break;
     }
 
-    previous_mode_ = *operation_mode_;
+    previous_mode_ = (*motor_feedback_).current_mode;
   }
 
-  template <class checkModeSupport> void check_support(checkModeSupport const& evt)
+  bool isSupported(const OperationMode &op_mode)
   {
     uint32_t masked_mode;
     bool supported;
 
-    switch(evt.op_mode){
+    switch(op_mode)
+    {
     case Profiled_Position:
     case Velocity:
     case Profiled_Velocity:
@@ -369,7 +372,7 @@ public:
     case Cyclic_Synchronous_Velocity:
     case Cyclic_Synchronous_Torque:
     case Homing:
-      masked_mode = (1<<(evt.op_mode-1));
+      masked_mode = (1<<(op_mode-1));
       break;
     case No_Mode:
     default:
@@ -379,39 +382,46 @@ public:
 
     supported = supported_modes_ & masked_mode;
 
+    return supported;
+  }
+
+  template <class checkModeSupport> void check_support(checkModeSupport const& evt)
+  {
+    bool supported = isSupported(evt.op_mode);
+
     if(!supported)
       BOOST_THROW_EXCEPTION(std::invalid_argument("Mode not supported"));
   }
 
   template <class enableMove> void move(enableMove const& evt)
   {
-    switch(evt.op_mode)
+    switch((*motor_feedback_).current_mode)
     {
     case Interpolated_Position:
+      modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
       ipModeMachine_.get()->process_event(IPModeSM::enableIP());
-      target_interpolated_position.set(evt.pos);
-      if (ip_mode_sub_mode.get_cached() == -1)
-        target_interpolated_velocity.set(evt.vel);
+      ipModeMachine_.get()->process_event(IPModeSM::setTarget(evt.pos, evt.vel));
       break;
 
-    case Velocity:
-      velModeMachine_.get()->process_event(velModeSM::enableVel());
-      target_velocity.set(evt.vel);
-      break;
+      //    case Velocity:
+      //      velModeMachine_.get()->process_event(velModeSM::enableVel());
+      //      target_velocity.set(evt.vel);
+      //      break;
 
     case Homing:
+      modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
       homingModeMachine_.get()->process_event(HomingSM::enableHoming());
       break;
 
-    case Profiled_Position:
-      ppModeMachine_.get()->process_event(ppModeSM::enablePP());
-      target_position.set(evt.pos);
-      break;
+      //    case Profiled_Position:
+      //      ppModeMachine_.get()->process_event(ppModeSM::enablePP());
+      //      target_position.set(evt.pos);
+      //      break;
 
-    case Profiled_Velocity:
-      pvModeMachine_.get()->process_event(pvModeSM::enablePV());
-      target_profiled_velocity.set(evt.vel);
-      break;
+      //    case Profiled_Velocity:
+      //      pvModeMachine_.get()->process_event(pvModeSM::enablePV());
+      //      target_profiled_velocity.set(evt.vel);
+      //      break;
 
     default:
       BOOST_THROW_EXCEPTION(std::invalid_argument("Mode not supported"));
@@ -524,7 +534,6 @@ private:
 
   boost::shared_ptr<double> target_pos_;
   boost::shared_ptr<double> target_vel_;
-  boost::shared_ptr<OperationMode> operation_mode_;
 
   boost::shared_ptr<StatusandControl::commandTargets> targets_;
   boost::shared_ptr<StatusandControl::motorFeedback> motor_feedback_;
@@ -538,20 +547,11 @@ private:
 
   boost::shared_ptr<ObjectStorage> storage_;
 
-  canopen::ObjectStorage::Entry<int16_t> target_velocity;
-  canopen::ObjectStorage::Entry<int32_t> target_position;
-  canopen::ObjectStorage::Entry<int32_t> target_interpolated_position;
-  canopen::ObjectStorage::Entry<int32_t> target_interpolated_velocity;
-  canopen::ObjectStorage::Entry<int32_t> target_profiled_velocity;
-
-  canopen::ObjectStorage::Entry<int8_t>  op_mode_display;
   canopen::ObjectStorage::Entry<int8_t>  op_mode;
-  canopen::ObjectStorage::Entry<int16_t>  ip_mode_sub_mode;
+
   canopen::ObjectStorage::Entry<uint32_t>  supported_drive_modes;
 
   canopen::ObjectStorage::Entry<int8_t>  homing_method;
-
-  canopen::ObjectStorage::Entry<uint32_t> profile_velocity;
 
   uint32_t supported_modes_;
 };

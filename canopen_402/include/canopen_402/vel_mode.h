@@ -76,7 +76,10 @@ class velModeSM_ : public msm::front::state_machine_def<velModeSM_>
 {
 public:
   velModeSM_(){}
-  velModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words){}
+  velModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, const boost::shared_ptr<ObjectStorage> &storage) : words_(words), storage_(storage)
+  {
+    storage_->entry(target_velocity, 0x6042);
+  }
   struct enableVel {};
   struct disableVel {};
   struct selectMode {};
@@ -176,6 +179,9 @@ public:
   }
 private:
   boost::shared_ptr<StatusandControl::wordBitset> words_;
+  boost::shared_ptr<ObjectStorage> storage_;
+
+  canopen::ObjectStorage::Entry<int16_t> target_velocity;
 
 };
 // back-end

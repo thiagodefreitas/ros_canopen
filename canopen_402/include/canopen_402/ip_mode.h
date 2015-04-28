@@ -75,11 +75,27 @@ class IPModeSM_ : public msm::front::state_machine_def<IPModeSM_>
 {
 public:
   IPModeSM_(){}
-  IPModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words){}
+  IPModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, const boost::shared_ptr<ObjectStorage> &storage) : words_(words), storage_(storage)
+  {
+    storage_->entry(ip_mode_sub_mode, 0x60C0);
+    storage_->entry(target_interpolated_position, 0x60C1, 0x01);
+
+    if (ip_mode_sub_mode.get_cached() == -1)
+      storage_->entry(target_interpolated_velocity, 0x60C1, 0x02);
+  }
   struct enableIP {};
   struct disableIP {};
   struct selectMode {};
   struct deselectMode {};
+  struct setTarget
+  {
+    double target_pos;
+    double target_vel;
+
+    setTarget() : target_pos(0), target_vel(0) {}
+    setTarget(double pos) : target_pos(pos), target_vel(0) {}
+    setTarget(double pos, double vel) : target_pos(pos), target_vel(vel) {}
+  };
 
   template <class Event,class FSM>
   void on_entry(Event const&,FSM& ) {/*std::cout << "entering: IPMode" << std::endl;*/}
@@ -88,6 +104,15 @@ public:
 
   // The list of FSM states
   struct IPInactive : public msm::front::state<>
+  {
+    template <class Event,class FSM>
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
+    template <class Event,class FSM>
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
+
+  };
+
+  struct updateTarget : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
@@ -121,7 +146,7 @@ public:
   };
 
   // the initial state. Must be defined
-  typedef modeDeselected initial_state;
+  typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
   void enable_ip(enableIP const&)
   {
@@ -129,6 +154,15 @@ public:
     (*words_).control_word.reset(CW_Operation_mode_specific1);
     (*words_).control_word.reset(CW_Operation_mode_specific2);
     std::cout << "IPMode::enable_ip\n";
+  }
+
+  template <class setTarget> void set_target(setTarget const& evt)
+  {
+    std::cout << "Setting IP target" << evt.target_pos << "," << evt.target_vel << std::endl;
+
+    target_interpolated_position.set(evt.target_pos);
+    if (ip_mode_sub_mode.get_cached() == -1)
+      target_interpolated_velocity.set(evt.target_vel);
   }
   void disable_ip(disableIP const&)
   {
@@ -169,7 +203,10 @@ public:
       a_row < IPActive   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
 
       a_row < IPInactive   , enableIP    , IPActive   , &ip::enable_ip                       >,
-      a_row < IPInactive   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >
+      a_row < IPInactive   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
+      //    +---------+-------------+---------+---------------------+----------------------+
+      //    +---------+-------------+---------+---------------------+----------------------+
+      a_row < updateTarget   , setTarget    , updateTarget   , &ip::set_target                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.
@@ -181,6 +218,12 @@ public:
   }
 private:
   boost::shared_ptr<StatusandControl::wordBitset> words_;
+  boost::shared_ptr<ObjectStorage> storage_;
+
+  canopen::ObjectStorage::Entry<int16_t>  ip_mode_sub_mode;
+
+  canopen::ObjectStorage::Entry<int32_t> target_interpolated_position;
+  canopen::ObjectStorage::Entry<int32_t> target_interpolated_velocity;
 
 };
 // back-end

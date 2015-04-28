@@ -70,10 +70,10 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 
   motorEvent(highLevelSM::enterStandBy());
 
-//  if(op_mode_var!=OperationMode(Homing)) TODO: thiagodefreitas, CHECK THE NECESSITY FOR THIS WITH THE NEW STRUCTURE
-//    control_word_bitset.get()->set(CW_Halt); //condition
+  //  if(op_mode_var!=OperationMode(Homing)) TODO: thiagodefreitas, CHECK THE NECESSITY FOR THIS WITH THE NEW STRUCTURE
+  //    control_word_bitset.get()->set(CW_Halt); //condition
 
-  boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
+  std::cout << "Trying to enter into mode: " << op_mode_var << std::endl;
 
   canopen::time_point abs_time = canopen::get_abs_time(boost::chrono::seconds(1));
   canopen::time_point actual_point;
@@ -95,13 +95,14 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 
       motorEvent(highLevelSM::enterStandBy());
     }
-  /*  control_word_bitset.get()->reset(CW_Halt)*/;
+    /*  control_word_bitset.get()->reset(CW_Halt)*/;
+    std::cout << "mode supported and entered" << op_mode_var << std::endl;
     valid_mode_state_ = true;
     return true;
   }
   else
   {
-//    control_word_bitset.get()->reset(CW_Halt);
+    //    control_word_bitset.get()->reset(CW_Halt);
     motorEvent(highLevelSM::enterStandBy());
     return false;
   }
@@ -111,7 +112,6 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
 bool Node_402::isModeSupported(const OperationMode &op_mode)
 {
   bool transition_success = motorEvent(highLevelSM::checkModeSupport(op_mode));
-
   return transition_success;
 }
 
@@ -151,7 +151,8 @@ void Node_402::handleWrite(LayerStatus &status, const LayerState &current_state)
 
 uint32_t Node_402::getModeMask(const OperationMode &op_mode)
 {
-  switch(op_mode){
+  switch(op_mode)
+  {
   case Profiled_Position:
   case Velocity:
   case Profiled_Velocity:
@@ -180,7 +181,7 @@ void Node_402::move(LayerStatus &status)
 {
   if((*motor_feedback_).state == Operation_Enable)
   {
-    bool transition_success = motorEvent(highLevelSM::enableMove(*operation_mode_, (*target_values_).target_pos, (*target_values_).target_vel));
+    bool transition_success = motorEvent(highLevelSM::enableMove((*target_values_).target_pos, (*target_values_).target_vel));
   }
 }
 
@@ -227,8 +228,8 @@ const double Node_402::getTargetVel()
 
 const OperationMode Node_402::getMode()
 {
-  if(*operation_mode_ == Homing) return No_Mode; // TODO: remove after mode switch is handled properly in init
-  return *operation_mode_;
+  if((*motor_feedback_).current_mode == Homing) return No_Mode; // TODO: remove after mode switch is handled properly in init
+  return (*motor_feedback_).current_mode;
 }
 
 const double Node_402::getActualVel()
@@ -423,10 +424,13 @@ void Node_402::handleInit(LayerStatus &s)
   {
     bool transition_success;
 
-    transition_success = enterModeAndWait(Homing);
-    if(!transition_success)
+    if(isModeSupported(Homing))
     {
-      s.error("Failed to do the homing procedure");
+      transition_success = enterModeAndWait(Homing);
+      if(!transition_success)
+      {
+        s.error("Failed to do the homing procedure");
+      }
     }
   }
   else
