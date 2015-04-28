@@ -85,6 +85,14 @@ public:
   struct selectMode {};
   struct deselectMode {};
 
+  struct setTarget
+  {
+    double target_vel;
+
+    setTarget() : target_vel(0) {}
+    setTarget(double vel) : target_vel(vel) {}
+  };
+
   template <class Event,class FSM>
   void on_entry(Event const&,FSM& ) {/*std::cout << "entering: PPMode" << std::endl;*/}
   template <class Event,class FSM>
@@ -97,6 +105,14 @@ public:
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: PPInactive" << std::endl;*/}
     template <class Event,class FSM>
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: PPInactive" << std::endl;*/}
+
+  };
+  struct updateTarget : public msm::front::state<>
+  {
+    template <class Event,class FSM>
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
+    template <class Event,class FSM>
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
 
   };
   struct velActive : public msm::front::state<>
@@ -125,14 +141,13 @@ public:
   };
 
   // the initial state. Must be defined
-  typedef modeDeselected initial_state;
+  typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
   void enable_vel(enableVel const&)
   {
     (*words_).control_word.set(CW_Operation_mode_specific0);
     (*words_).control_word.set(CW_Operation_mode_specific1);
     (*words_).control_word.set(CW_Operation_mode_specific2);
-    std::cout << "VelMode::enable_vel\n";
   }
   void disable_vel(disableVel const&)
   {
@@ -151,6 +166,11 @@ public:
     (*words_).control_word.reset(CW_Operation_mode_specific1);
     (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
+
+  template <class setTarget> void set_target(setTarget const& evt)
+  {
+    target_velocity.set(evt.target_vel);
+  }
   // guard conditions
 
   typedef velModeSM_ vel; // makes transition table cleaner
@@ -167,7 +187,10 @@ public:
       a_row < velActive   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >,
 
       a_row < velInactive   , enableVel    , velActive   , &vel::enable_vel                       >,
-      a_row < velInactive   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >
+      a_row < velInactive   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >,
+      //    +---------+-------------+---------+---------------------+----------------------+
+      //    +---------+-------------+---------+---------------------+----------------------+
+      a_row < updateTarget   , setTarget    , updateTarget   , &vel::set_target                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.

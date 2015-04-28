@@ -84,6 +84,13 @@ public:
   struct disablePV {};
   struct selectMode {};
   struct deselectMode {};
+  struct setTarget
+  {
+    double target_vel;
+
+    setTarget() : target_vel(0) {}
+    setTarget(double vel) : target_vel(vel) {}
+  };
 
   template <class Event,class FSM>
   void on_entry(Event const&,FSM& ) {/*std::cout << "entering: PVMode" << std::endl;*/}
@@ -124,8 +131,17 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: modeSelected" << std::endl;*/}
   };
 
+  struct updateTarget : public msm::front::state<>
+  {
+    template <class Event,class FSM>
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
+    template <class Event,class FSM>
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
+
+  };
+
   // the initial state. Must be defined
-  typedef modeDeselected initial_state;
+  typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
   void enable_pv(enablePV const&)
   {
@@ -153,6 +169,11 @@ public:
     (*words_).control_word.reset(CW_Operation_mode_specific2);
     std::cout << "pvMode::deselect_pvINtern\n";
   }
+
+  template <class setTarget> void set_target(setTarget const& evt)
+  {
+    target_profiled_velocity.set(evt.target_vel);
+  }
   // guard conditions
 
   typedef pvModeSM_ pv; // makes transition table cleaner
@@ -169,7 +190,10 @@ public:
       a_row < pvActive   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >,
 
       a_row < pvInactive   , enablePV    , pvActive   , &pv::enable_pv                       >,
-      a_row < pvInactive   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >
+      a_row < pvInactive   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >,
+      //    +---------+-------------+---------+---------------------+----------------------+
+      //    +---------+-------------+---------+---------------------+----------------------+
+      a_row < updateTarget   , setTarget    , updateTarget   , &pv::set_target                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.

@@ -299,10 +299,9 @@ public:
 
   template <class checkModeSwitch> void mode_switch(checkModeSwitch const& evt)
   {
-    op_mode.set_cached(evt.op_mode);
-
     if((*motor_feedback_).current_mode != evt.op_mode && evt.op_mode != No_Mode)
     {
+      op_mode.set_cached(evt.op_mode);
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
     }
@@ -398,30 +397,28 @@ public:
     switch((*motor_feedback_).current_mode)
     {
     case Interpolated_Position:
-      modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
       ipModeMachine_.get()->process_event(IPModeSM::enableIP());
       ipModeMachine_.get()->process_event(IPModeSM::setTarget(evt.pos, evt.vel));
       break;
 
-      //    case Velocity:
-      //      velModeMachine_.get()->process_event(velModeSM::enableVel());
-      //      target_velocity.set(evt.vel);
-      //      break;
+    case Velocity:
+      velModeMachine_.get()->process_event(velModeSM::enableVel());
+      velModeMachine_.get()->process_event(velModeSM::setTarget(evt.vel));
+      break;
 
     case Homing:
-      modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
       homingModeMachine_.get()->process_event(HomingSM::enableHoming());
       break;
 
-      //    case Profiled_Position:
-      //      ppModeMachine_.get()->process_event(ppModeSM::enablePP());
-      //      target_position.set(evt.pos);
-      //      break;
+    case Profiled_Position:
+      ppModeMachine_.get()->process_event(ppModeSM::enablePP());
+      ppModeMachine_.get()->process_event(ppModeSM::setTarget(evt.pos));
+      break;
 
-      //    case Profiled_Velocity:
-      //      pvModeMachine_.get()->process_event(pvModeSM::enablePV());
-      //      target_profiled_velocity.set(evt.vel);
-      //      break;
+    case Profiled_Velocity:
+      pvModeMachine_.get()->process_event(pvModeSM::enablePV());
+      pvModeMachine_.get()->process_event(pvModeSM::setTarget(evt.vel));
+      break;
 
     default:
       BOOST_THROW_EXCEPTION(std::invalid_argument("Mode not supported"));
@@ -500,17 +497,17 @@ public:
       a_row < ModeSwitch   , runMotorSM, updateMotorSM   , &hl::motor_sm                     >,
       a_row < ModeSwitch   , enterStandBy, Standby   , &hl::standby                      >,
       a_row < ModeSwitch   , stopMachine, machineStopped   , &hl::stop_machine                      >,
-      a_row < ModeSwitch   , updateSwitch, ModeSwitch   , &hl::update_switch                      >,
-
+      a_row < ModeSwitch   , checkModeSwitch, ModeSwitch   , &hl::mode_switch                      >,
 
       a_row < updateMotorSM   , checkModeSwitch    , ModeSwitch   , &hl::mode_switch                       >,
       a_row < updateMotorSM   , enterStandBy, Standby   , &hl::standby                      >,
       a_row < updateMotorSM   , enableMove, Move   , &hl::move                     >,
       a_row < updateMotorSM   , stopMachine, machineStopped   , &hl::stop_machine                      >,
-      a_row < updateMotorSM   , updateMotor, updateMotorSM   , &hl::update_motor                      >,
+      a_row < updateMotorSM   , runMotorSM, updateMotorSM   , &hl::motor_sm                      >,
 
       a_row < Move   , enterStandBy, Standby   , &hl::standby                      >,
       a_row < Move   , stopMachine, machineStopped   , &hl::stop_machine                      >,
+      a_row < Move   , enableMove, Move   , &hl::move                      >,
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < isModeSupported   , checkModeSupport    , isModeSupported   , &hl::check_support                       >
       //    +---------+-------------+---------+---------------------+----------------------+

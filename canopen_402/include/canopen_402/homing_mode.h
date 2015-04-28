@@ -162,7 +162,7 @@ public:
   {
     (*words_).control_word.set(CW_Operation_mode_specific0);
 
-    switch (((*words_).control_word & homing_mask_).to_ulong())
+    switch (((*words_).status_word & homing_mask_).to_ulong())
     {
     //-------------------------------------------------------------//
     // Op_specific1 | Op_specific0 | Target_reached | Description |

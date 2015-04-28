@@ -153,13 +153,11 @@ public:
     (*words_).control_word.set(CW_Operation_mode_specific0);
     (*words_).control_word.reset(CW_Operation_mode_specific1);
     (*words_).control_word.reset(CW_Operation_mode_specific2);
-    std::cout << "IPMode::enable_ip\n";
+    std::cout << "IPMode::enableIP\n";
   }
 
   template <class setTarget> void set_target(setTarget const& evt)
   {
-    std::cout << "Setting IP target" << evt.target_pos << "," << evt.target_vel << std::endl;
-
     target_interpolated_position.set(evt.target_pos);
     if (ip_mode_sub_mode.get_cached() == -1)
       target_interpolated_velocity.set(evt.target_vel);
@@ -169,7 +167,6 @@ public:
     (*words_).control_word.reset(CW_Operation_mode_specific0);
     (*words_).control_word.reset(CW_Operation_mode_specific1);
     (*words_).control_word.reset(CW_Operation_mode_specific2);
-    std::cout << "IPMode::disable_ip\n";
   }
 
   void select_mode(selectMode const&)

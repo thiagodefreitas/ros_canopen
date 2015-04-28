@@ -85,6 +85,15 @@ public:
   struct disablePP {};
   struct selectMode {};
   struct deselectMode {};
+  struct setTarget
+  {
+    double target_pos;
+    double target_vel;
+
+    setTarget() : target_pos(0), target_vel(0) {}
+    setTarget(double pos) : target_pos(pos), target_vel(0) {}
+    setTarget(double pos, double vel) : target_pos(pos), target_vel(vel) {}
+  };
 
   template <class Event,class FSM>
   void on_entry(Event const&,FSM& ) {/*std::cout << "entering: ppMode" << std::endl;*/}
@@ -125,8 +134,17 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: modeSelected" << std::endl;*/}
   };
 
+  struct updateTarget : public msm::front::state<>
+  {
+    template <class Event,class FSM>
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
+    template <class Event,class FSM>
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
+
+  };
+
   // the initial state. Must be defined
-  typedef modeDeselected initial_state;
+  typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
   void enable_pp(enablePP const&)
   {
@@ -152,6 +170,11 @@ public:
     (*words_).control_word.reset(CW_Operation_mode_specific1);
     (*words_).control_word.reset(CW_Operation_mode_specific2);
   }
+
+  template <class setTarget> void set_target(setTarget const& evt)
+  {
+    target_position.set(evt.target_pos);
+  }
   // guard conditions
 
   typedef ppModeSM_ pp; // makes transition table cleaner
@@ -168,7 +191,10 @@ public:
       a_row < ppActive   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
 
       a_row < ppInactive   , enablePP    , ppActive   , &pp::enable_pp                       >,
-      a_row < ppInactive   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >
+      a_row < ppInactive   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
+      //    +---------+-------------+---------+---------------------+----------------------+
+      //    +---------+-------------+---------+---------------------+----------------------+
+      a_row < updateTarget   , setTarget    , updateTarget   , &pp::set_target                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.
