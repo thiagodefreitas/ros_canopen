@@ -68,8 +68,6 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
   boost::mutex::scoped_lock lock(mode_mutex_, boost::try_to_lock);
   if(!lock) return false;
 
-  motorEvent(highLevelSM::enterStandBy());
-
   //  if(op_mode_var!=OperationMode(Homing)) TODO: thiagodefreitas, CHECK THE NECESSITY FOR THIS WITH THE NEW STRUCTURE
   //    control_word_bitset.get()->set(CW_Halt); //condition
 
@@ -90,8 +88,6 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
         return false;
       }
       transition_success = motorEvent(highLevelSM::checkModeSwitch(op_mode_var));
-
-      motorEvent(highLevelSM::enterStandBy());
     }
     /*  control_word_bitset.get()->reset(CW_Halt)*/;
     valid_mode_state_ = true;
@@ -100,7 +96,6 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
   else
   {
     //    control_word_bitset.get()->reset(CW_Halt);
-    motorEvent(highLevelSM::enterStandBy());
     return false;
   }
 }
@@ -176,7 +171,11 @@ void Node_402::processCW(LayerStatus &status)
 
 void Node_402::move(LayerStatus &status)
 {
-  if((*motor_feedback_).state == Operation_Enable)
+  if(((*motor_feedback_).state != Operation_Enable) || (valid_mode_state_ == false))
+  {
+    motorEvent(highLevelSM::enterStandBy());
+  }
+  else
   {
     bool transition_success = motorEvent(highLevelSM::enableMove((*target_values_).target_pos, (*target_values_).target_vel));
   }
@@ -196,8 +195,6 @@ void Node_402::handleHalt(LayerStatus &status)
   bool transition_success;
 
   transition_success = motorEvent(highLevelSM::runMotorSM(QuickStop));
-
-  motorEvent(highLevelSM::enterStandBy());
 }
 
 
@@ -354,7 +351,6 @@ bool Node_402::turnOn(LayerStatus &s)
   }
 
   transition_success = motorEvent(highLevelSM::runMotorSM(EnableOp));
-  motorEvent(highLevelSM::enterStandBy());
 
   while(!transition_success)
   {

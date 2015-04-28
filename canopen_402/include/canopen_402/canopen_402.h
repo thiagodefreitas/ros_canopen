@@ -66,7 +66,7 @@ namespace canopen
 class Node_402 : public canopen::Layer
 {
 public:
-  Node_402(boost::shared_ptr <canopen::Node> n, const std::string &name) : Layer(name), n_(n), storage_(n_->getStorage())
+  Node_402(boost::shared_ptr <canopen::Node> n, const std::string &name) : Layer(name), n_(n), storage_(n_->getStorage()), valid_mode_state_(true)
   {
     words_ = boost::make_shared<StatusandControl::wordBitset>();
 
