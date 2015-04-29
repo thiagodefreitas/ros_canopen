@@ -162,6 +162,8 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
+    target_velocity.set(0.0);
+
     words_->control_word.reset(CW_Operation_mode_specific0);
     words_->control_word.reset(CW_Operation_mode_specific1);
     words_->control_word.reset(CW_Operation_mode_specific2);

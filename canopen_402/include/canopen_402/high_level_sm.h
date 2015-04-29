@@ -330,21 +330,29 @@ public:
 
     case Interpolated_Position:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      if(words_->control_word.test(CW_Operation_mode_specific0))
+        BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
       modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
       break;
 
     case Velocity:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      if(words_->control_word.test(CW_Operation_mode_specific0))
+        BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
       modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
       break;
 
     case Profiled_Velocity:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      if(words_->control_word.test(CW_Operation_mode_specific0))
+        BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
       modeSwitchMachine.process_event(ModeSwitchSM::selectPV());
       break;
 
     case Profiled_Position:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      if(words_->control_word.test(CW_Operation_mode_specific0))
+        BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
       modeSwitchMachine.process_event(ModeSwitchSM::selectPP());
       break;
 

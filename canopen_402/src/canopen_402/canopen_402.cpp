@@ -60,9 +60,8 @@ using canopen::Node_402;
 void Node_402::pending(LayerStatus &status)
 {
   processSW(status);
-  processCW(status);
-
   motorEvent(highLevelSM::enterStandBy());
+  processCW(status);
 }
 
 bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
