@@ -61,6 +61,8 @@ void Node_402::pending(LayerStatus &status)
 {
   processSW(status);
   processCW(status);
+
+  motorEvent(highLevelSM::enterStandBy());
 }
 
 bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
@@ -68,13 +70,13 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
   boost::mutex::scoped_lock lock(mode_mutex_, boost::try_to_lock);
   if(!lock) return false;
 
-  //  if(op_mode_var!=OperationMode(Homing)) TODO: thiagodefreitas, CHECK THE NECESSITY FOR THIS WITH THE NEW STRUCTURE
-  //    control_word_bitset.get()->set(CW_Halt); //condition
-
+  std::cout << "enterModeandWait" << op_mode_var << std::endl;
   canopen::time_point abs_time = canopen::get_abs_time(boost::chrono::seconds(1));
   canopen::time_point actual_point;
 
   valid_mode_state_ = false;
+
+  motorEvent(highLevelSM::enterStandBy());
 
   if (isModeSupported(op_mode_var) || op_mode_var == OperationMode(No_Mode))
   {
@@ -87,15 +89,14 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
       {
         return false;
       }
+      motorEvent(highLevelSM::enterStandBy());
       transition_success = motorEvent(highLevelSM::checkModeSwitch(op_mode_var));
     }
-    /*  control_word_bitset.get()->reset(CW_Halt)*/;
     valid_mode_state_ = true;
     return true;
   }
   else
   {
-    //    control_word_bitset.get()->reset(CW_Halt);
     return false;
   }
 }
@@ -131,7 +132,7 @@ void Node_402::handleWrite(LayerStatus &status, const LayerState &current_state)
   {
     return;
   }
-  if((*motor_feedback_).state == Fault)
+  if(motor_feedback_->state == Fault)
   {
     bool transition_success;
     transition_success =  motorEvent(highLevelSM::runMotorSM(FaultEnable));
@@ -171,13 +172,13 @@ void Node_402::processCW(LayerStatus &status)
 
 void Node_402::move(LayerStatus &status)
 {
-  if(((*motor_feedback_).state != Operation_Enable) || (valid_mode_state_ == false))
+  if((motor_feedback_->state != Operation_Enable) || (valid_mode_state_ == false))
   {
     motorEvent(highLevelSM::enterStandBy());
   }
   else
   {
-    bool transition_success = motorEvent(highLevelSM::enableMove((*target_values_).target_pos, (*target_values_).target_vel));
+    bool transition_success = motorEvent(highLevelSM::enableMove(target_values_->target_pos, target_values_->target_vel));
   }
 }
 
@@ -202,63 +203,78 @@ void Node_402::handleRecover(LayerStatus &status)
 {
   bool recover_success;
 
+  OperationMode previous_mode = getMode();
+
   motorEvent(highLevelSM::stopMachine());
 
   recover_success = turnOn(status);
 
-  if(!recover_success)
+  if(recover_success)
+  {
+    bool transition_success;
+
+    if(isModeSupported(previous_mode))
+    {
+      transition_success = enterModeAndWait(previous_mode);
+      if(!transition_success)
+      {
+        status.error("Failed to re-enter mode in Recover");
+      }
+    }
+  }
+  else
     status.error("Failed to Recover the modules");
 }
 
 const double Node_402::getTargetPos()
 {
-  return (*target_values_).target_pos;
+  return target_values_->target_pos;
 }
 const double Node_402::getTargetVel()
 {
-  return (*target_values_).target_vel;
+  return target_values_->target_vel;
 }
 
 
 const OperationMode Node_402::getMode()
 {
-  if((*motor_feedback_).current_mode == Homing) return No_Mode; // TODO: remove after mode switch is handled properly in init
-  return (*motor_feedback_).current_mode;
+  if(motor_feedback_->current_mode == Homing) return No_Mode; // TODO: remove after mode switch is handled properly in init
+  return motor_feedback_->current_mode;
 }
 
 const double Node_402::getActualVel()
 {
-  return (*motor_feedback_).actual_vel;
+  return motor_feedback_->actual_vel;
 }
 
 const double Node_402::getActualEff()
 {
-  return (*motor_feedback_).actual_eff;
+  return motor_feedback_->actual_eff;
 }
 
 const double Node_402::getActualPos()
 {
-  return (*motor_feedback_).actual_pos;
+  return motor_feedback_->actual_pos;
 }
 
 void Node_402::setTargetVel(const double &target_vel)
 {
-  if ((*motor_feedback_).state == Operation_Enable)
+  if (motor_feedback_->state == Operation_Enable)
   {
-    (*target_values_).target_vel = target_vel;
+    target_values_->target_vel = target_vel;
   }
   else
-    (*target_values_).target_vel = 0;
+    target_values_->target_vel = 0;
 }
 
 void Node_402::setTargetPos(const double &target_pos)
 {
-  if ((*motor_feedback_).state == Operation_Enable)
+  if (motor_feedback_->state == Operation_Enable)
   {
-    (*target_values_).target_pos = target_pos;
+    target_values_->target_pos = target_pos;
   }
   else
-    (*target_values_).target_pos = (*motor_feedback_).actual_pos;
+    target_values_->target_pos = motor_feedback_->actual_pos;
 }
 
 bool Node_402::turnOn(LayerStatus &s)
@@ -274,12 +290,12 @@ bool Node_402::turnOn(LayerStatus &s)
 
   motorEvent(highLevelSM::startMachine());
 
-  while((*motor_feedback_).state == Start)
+  while(motor_feedback_->state == Start)
   {
     boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
   }
 
-  if((*motor_feedback_).state == Fault)
+  if(motor_feedback_->state == Fault)
   {
     transition_success =  motorEvent(highLevelSM::runMotorSM(FaultEnable)); //this is the timeout in milliseconds
     if(!transition_success)
@@ -304,7 +320,7 @@ bool Node_402::turnOn(LayerStatus &s)
   }
 
 
-  if((*motor_feedback_).state==Quick_Stop_Active)
+  if(motor_feedback_->state==Quick_Stop_Active)
   {
     transition_success = motorEvent(highLevelSM::runMotorSM(DisableQuickStop));
 
@@ -319,9 +335,6 @@ bool Node_402::turnOn(LayerStatus &s)
       transition_success = motorEvent(highLevelSM::runMotorSM(DisableQuickStop));
     }
   }
-
-
-  boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
 
   transition_success = motorEvent(highLevelSM::runMotorSM(ShutdownMotor));
 

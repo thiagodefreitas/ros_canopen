@@ -83,8 +83,8 @@ public:
     if (ip_mode_sub_mode.get_cached() == -1)
       storage_->entry(target_interpolated_velocity, 0x60C1, 0x02);
   }
-  struct enableIP {};
-  struct disableIP {};
+  struct enable {};
+  struct disable {};
   struct selectMode {};
   struct deselectMode {};
   struct setTarget
@@ -103,7 +103,7 @@ public:
   void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: IPMode" << std::endl;*/}
 
   // The list of FSM states
-  struct IPInactive : public msm::front::state<>
+  struct Inactive : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
@@ -120,7 +120,7 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
 
   };
-  struct IPActive : public msm::front::state<>
+  struct Active : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPActive" << std::endl;*/}
@@ -148,12 +148,11 @@ public:
   // the initial state. Must be defined
   typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
-  void enable_ip(enableIP const&)
+  void enable_mode(enable const&)
   {
-    (*words_).control_word.set(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
-    std::cout << "IPMode::enableIP\n";
+    words_->control_word.set(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
 
   template <class setTarget> void set_target(setTarget const& evt)
@@ -162,26 +161,24 @@ public:
     if (ip_mode_sub_mode.get_cached() == -1)
       target_interpolated_velocity.set(evt.target_vel);
   }
-  void disable_ip(disableIP const&)
+  void disable_mode(disable const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
-    std::cout << "IPMode::selectMode\n";
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
   void deselect_mode(deselectMode const&)
   {
-    std::cout << "IPMode::deselectMode\n";
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -192,15 +189,15 @@ public:
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < modeDeselected   , selectMode    , modeSelected   , &ip::select_mode                       >,
 
-      Row < modeSelected   , none    , IPInactive   , none, none                       >,
+      Row < modeSelected   , none    , Inactive   , none, none                       >,
       a_row < modeSelected   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
 
-      a_row < IPActive   , disableIP, IPInactive   , &ip::disable_ip                      >,
-      a_row < IPActive   , enableIP    , IPActive   , &ip::enable_ip                       >,
-      a_row < IPActive   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
+      a_row < Active   , disable, Inactive   , &ip::disable_mode                      >,
+      a_row < Active   , enable    , Active   , &ip::enable_mode                       >,
+      a_row < Active   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
 
-      a_row < IPInactive   , enableIP    , IPActive   , &ip::enable_ip                       >,
-      a_row < IPInactive   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
+      a_row < Inactive   , enable    , Active   , &ip::enable_mode                       >,
+      a_row < Inactive   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
       //    +---------+-------------+---------+---------------------+----------------------+
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < updateTarget   , setTarget    , updateTarget   , &ip::set_target                       >

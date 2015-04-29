@@ -84,8 +84,8 @@ public:
 
     homing_state_ = boost::make_shared<HomingState>(NotStarted);
   }
-  struct enableHoming {};
-  struct disableHoming {};
+  struct enable {};
+  struct disable {};
   struct selectMode {};
   struct deselectMode {};
   struct runHomingCheck {};
@@ -96,7 +96,7 @@ public:
   void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: homingMode" << std::endl;*/}
 
   // The list of FSM states
-  struct HomingInactive : public msm::front::state<>
+  struct Inactive : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: homingInactive" << std::endl;*/}
@@ -104,7 +104,7 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: homingInactive" << std::endl;*/}
 
   };
-  struct HomingActive : public msm::front::state<>
+  struct Active : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: homingActive" << std::endl;*/}
@@ -140,17 +140,18 @@ public:
   // the initial state. Must be defined
   typedef mpl::vector<modeDeselected,updateHoming> initial_state;
   // transition actions
-  void enable_homing(enableHoming const&)
+  void enable_mode(enable const&)
   {
-    (*words_).control_word.set(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
+
+    words_->control_word.set(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
     //    std::cout << "homingMode::enable_homing";
   }
-  void disable_homing(disableHoming const&)
+  void disable_mode(disable const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
@@ -160,9 +161,9 @@ public:
 
   void update_homing(runHomingCheck const&)
   {
-    (*words_).control_word.set(CW_Operation_mode_specific0);
+    words_->control_word.set(CW_Operation_mode_specific0);
 
-    switch (((*words_).status_word & homing_mask_).to_ulong())
+    switch ((words_->status_word & homing_mask_).to_ulong())
     {
     //-------------------------------------------------------------//
     // Op_specific1 | Op_specific0 | Target_reached | Description |
@@ -207,9 +208,9 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -220,14 +221,14 @@ public:
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < modeDeselected   , selectMode    , modeSelected   , &hom::select_mode                       >,
 
-      Row < modeSelected   , none    , HomingInactive   , none, none                       >,
+      Row < modeSelected   , none    , Inactive   , none, none                       >,
       a_row < modeSelected   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
 
-      a_row < HomingActive   , disableHoming, HomingInactive   , &hom::disable_homing                      >,
-      a_row < HomingActive   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
+      a_row < Active   , disable, Inactive   , &hom::disable_mode                      >,
+      a_row < Active   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
 
-      a_row < HomingInactive   , enableHoming    , HomingActive   , &hom::enable_homing                       >,
-      a_row < HomingInactive   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
+      a_row < Inactive   , enable    , Active   , &hom::enable_mode                       >,
+      a_row < Inactive   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < updateHoming   , runHomingCheck    , updateHoming   , &hom::update_homing                       >
       //    +---------+-------------+---------+---------------------+----------------------+

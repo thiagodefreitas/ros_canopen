@@ -159,31 +159,31 @@ public:
   void select_pp(selectPP const&)
   {
     std::cout << "ModeSwitch::selectPP\n";
-    pp_machine_.get()->process_event(ppModeSM::selectMode());
+    pp_machine_->process_event(ppModeSM::selectMode());
   }
 
   void select_pv(selectPV const&)
   {
     std::cout << "ModeSwitch::selectPV\n";
-    pv_machine_.get()->process_event(pvModeSM::selectMode());
+    pv_machine_->process_event(pvModeSM::selectMode());
   }
 
   void select_vel(selectVel const&)
   {
     std::cout << "ModeSwitch::selectvel\n";
-    vel_machine_.get()->process_event(velModeSM::selectMode());
+    vel_machine_->process_event(velModeSM::selectMode());
   }
 
   void select_ip(selectIP const&)
   {
     std::cout << "ModeSwitch::selectip\n";
-    ip_machine_.get()->process_event(IPModeSM::selectMode());
+    ip_machine_->process_event(IPModeSM::selectMode());
   }
 
 
   void select_homing(selectHoming const&)
   {
-    homing_machine_.get()->process_event(HomingSM::selectMode());
+    homing_machine_->process_event(HomingSM::selectMode());
   }
 
   void deselect_mode(deactivateMode const& evt)
@@ -191,28 +191,28 @@ public:
     switch(evt.op_mode)
     {
     case Interpolated_Position:
-      (*ip_machine_).process_event(IPModeSM::disableIP());
-      ip_machine_.get()->process_event(IPModeSM::deselectMode());
+      ip_machine_->process_event(IPModeSM::disable());
+      ip_machine_->process_event(IPModeSM::deselectMode());
       break;
 
     case Velocity:
-      (*vel_machine_).process_event(velModeSM::disableVel());
-      vel_machine_.get()->process_event(velModeSM::deselectMode());
+      vel_machine_->process_event(velModeSM::disable());
+      vel_machine_->process_event(velModeSM::deselectMode());
       break;
 
     case Homing:
-      (*homing_machine_).process_event(HomingSM::disableHoming());
-      homing_machine_.get()->process_event(HomingSM::deselectMode());
+      homing_machine_->process_event(HomingSM::disable());
+      homing_machine_->process_event(HomingSM::deselectMode());
       break;
 
     case Profiled_Velocity:
-      (*pv_machine_).process_event(pvModeSM::disablePV());
-      pv_machine_.get()->process_event(pvModeSM::deselectMode());
+      pv_machine_->process_event(pvModeSM::disable());
+      pv_machine_->process_event(pvModeSM::deselectMode());
       break;
 
     case Profiled_Position:
-      (*pp_machine_).process_event(ppModeSM::disablePP());
-      pp_machine_.get()->process_event(ppModeSM::deselectMode());
+      pp_machine_->process_event(ppModeSM::disable());
+      pp_machine_->process_event(ppModeSM::deselectMode());
       break;
     }
   }

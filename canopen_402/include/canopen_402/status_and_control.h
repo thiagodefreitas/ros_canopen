@@ -88,7 +88,8 @@ public:
     double actual_eff;
     InternalState state;
     OperationMode current_mode;
-    motorFeedback() : actual_pos(0), actual_vel(0), actual_eff(0), state(Start), current_mode(No_Mode) {}
+    bool target_reached;
+    motorFeedback() : actual_pos(0), actual_vel(0), actual_eff(0), state(Start), current_mode(No_Mode), target_reached(false){}
   };
 
   struct wordBitset
@@ -170,7 +171,7 @@ public:
   // transition actions
   void write_control(newStatusWord const&)
   {
-    int16_t cw_set = static_cast<int>(((*word_bitset_).control_word).to_ulong());
+    int16_t cw_set = static_cast<int>((word_bitset_->control_word).to_ulong());
 
     control_word_entry_.set(cw_set);
   }
@@ -179,45 +180,47 @@ public:
   {
     std::bitset<16> sw_new(status_word_entry_.get());
 
-    (*word_bitset_).status_word = sw_new;
-    switch ((((*word_bitset_).status_word) & status_word_mask_).to_ulong())
+    word_bitset_->status_word = sw_new;
+    switch (((word_bitset_->status_word) & status_word_mask_).to_ulong())
     {
     case 0b0000000:
     case 0b0100000:
-      (*motor_feedback_).state = Not_Ready_To_Switch_On;
+      motor_feedback_->state = Not_Ready_To_Switch_On;
       break;
     case 0b1000000:
     case 0b1100000:
-      (*motor_feedback_).state =  Switch_On_Disabled;
+      motor_feedback_->state =  Switch_On_Disabled;
       break;
     case 0b0100001:
-      (*motor_feedback_).state =  Ready_To_Switch_On;
+      motor_feedback_->state =  Ready_To_Switch_On;
       break;
     case 0b0100011:
-      (*motor_feedback_).state =  Switched_On;
+      motor_feedback_->state =  Switched_On;
       break;
     case 0b0100111:
-      (*motor_feedback_).state =  Operation_Enable;
+      motor_feedback_->state =  Operation_Enable;
       break;
     case 0b0000111:
-      (*motor_feedback_).state =  Quick_Stop_Active;
+      motor_feedback_->state =  Quick_Stop_Active;
       break;
     case 0b0001111:
     case 0b0101111:
-      (*motor_feedback_).state =  Fault_Reaction_Active;
+      motor_feedback_->state =  Fault_Reaction_Active;
       break;
     case 0b0001000:
     case 0b0101000:
-      (*motor_feedback_).state =  Fault;
+      motor_feedback_->state =  Fault;
       break;
     default:
       LOG("Motor currently in an unknown state");
     }
 
-    (*motor_feedback_).current_mode = (OperationMode) op_mode_display.get();
-    (*motor_feedback_).actual_vel = actual_vel.get();
-    (*motor_feedback_).actual_pos = actual_pos.get();
-    (*motor_feedback_).actual_eff = 0; //Currently,no effort value is directly obtained from the HW
+    motor_feedback_->current_mode = (OperationMode) op_mode_display.get();
+    motor_feedback_->actual_vel = actual_vel.get();
+    motor_feedback_->actual_pos = actual_pos.get();
+    motor_feedback_->actual_eff = 0; //Currently,no effort value is directly obtained from the HW
+
+    motor_feedback_->target_reached = word_bitset_->status_word.test(SW_Target_reached); //Currently,no effort value is directly obtained from the HW
   }
   // guard conditions
 

@@ -80,8 +80,8 @@ public:
   {
     storage_->entry(target_profiled_velocity, 0x60FF);
   }
-  struct enablePV {};
-  struct disablePV {};
+  struct enable {};
+  struct disable {};
   struct selectMode {};
   struct deselectMode {};
   struct setTarget
@@ -98,7 +98,7 @@ public:
   void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: PVMode" << std::endl;*/}
 
   // The list of FSM states
-  struct pvInactive : public msm::front::state<>
+  struct Inactive : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: PVInactive" << std::endl;*/}
@@ -106,7 +106,7 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: PVInactive" << std::endl;*/}
 
   };
-  struct pvActive : public msm::front::state<>
+  struct Active : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: PVInactive" << std::endl;*/}
@@ -143,31 +143,31 @@ public:
   // the initial state. Must be defined
   typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
-  void enable_pv(enablePV const&)
+  void enable_pv(enable const&)
   {
-    (*words_).control_word.set(CW_Operation_mode_specific0);
-    (*words_).control_word.set(CW_Operation_mode_specific1);
-    (*words_).control_word.set(CW_Operation_mode_specific2);
-    std::cout << "pvMode::enable_pvINtern\n";
+    words_->control_word.set(CW_Operation_mode_specific0);
+    words_->control_word.set(CW_Operation_mode_specific1);
+    words_->control_word.set(CW_Operation_mode_specific2);
+//    std::cout << "pvMode::enable_pvINtern\n";
   }
-  void disable_pv(disablePV const&)
+  void disable_pv(disable const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
-    std::cout << "pvMode::disable_pvIntern\n";
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
+//    std::cout << "pvMode::disable_pvIntern\n";
   }
 
   void select_mode(selectMode const&)
   {
-    std::cout << "PVMode::selectModeINtern\n";
+//    std::cout << "PVMode::selectModeINtern\n";
   }
   void deselect_mode(deselectMode const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
-    std::cout << "pvMode::deselect_pvINtern\n";
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
+//    std::cout << "pvMode::deselect_pvINtern\n";
   }
 
   template <class setTarget> void set_target(setTarget const& evt)
@@ -183,14 +183,14 @@ public:
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < modeDeselected   , selectMode    , modeSelected   , &pv::select_mode                       >,
 
-      Row < modeSelected   , none    , pvInactive   , none, none                       >,
+      Row < modeSelected   , none    , Inactive   , none, none                       >,
       a_row < modeSelected   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >,
 
-      a_row < pvActive   , disablePV, pvInactive   , &pv::disable_pv                      >,
-      a_row < pvActive   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >,
+      a_row < Active   , disable, Inactive   , &pv::disable_pv                      >,
+      a_row < Active   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >,
 
-      a_row < pvInactive   , enablePV    , pvActive   , &pv::enable_pv                       >,
-      a_row < pvInactive   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >,
+      a_row < Inactive   , enable    , Active   , &pv::enable_pv                       >,
+      a_row < Inactive   , deselectMode    , modeDeselected   , &pv::deselect_mode                       >,
       //    +---------+-------------+---------+---------------------+----------------------+
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < updateTarget   , setTarget    , updateTarget   , &pv::set_target                       >

@@ -81,8 +81,8 @@ public:
     storage_->entry(target_position, 0x607A);
     storage_->entry(profile_velocity, 0x6081);
   }
-  struct enablePP {};
-  struct disablePP {};
+  struct enable {};
+  struct disable {};
   struct selectMode {};
   struct deselectMode {};
   struct setTarget
@@ -101,7 +101,7 @@ public:
   void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: ppMode" << std::endl;*/}
 
   // The list of FSM states
-  struct ppInactive : public msm::front::state<>
+  struct Inactive : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: ppInactive" << std::endl;*/}
@@ -109,7 +109,7 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: ppInactive" << std::endl;*/}
 
   };
-  struct ppActive : public msm::front::state<>
+  struct Active : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: ppInactive" << std::endl;*/}
@@ -146,18 +146,18 @@ public:
   // the initial state. Must be defined
   typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
-  void enable_pp(enablePP const&)
+  void enable_mode(enable const&)
   {
-    (*words_).control_word.set(CW_Operation_mode_specific0);
-    (*words_).control_word.set(CW_Operation_mode_specific1);
-    (*words_).control_word.set(CW_Operation_mode_specific2);
+    words_->control_word.set(CW_Operation_mode_specific0);
+    words_->control_word.set(CW_Operation_mode_specific1);
+    words_->control_word.set(CW_Operation_mode_specific2);
     std::cout << "ppMode::enable_pp\n";
   }
-  void disable_pp(disablePP const&)
+  void disable_mode(disable const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
@@ -166,9 +166,9 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
 
   template <class setTarget> void set_target(setTarget const& evt)
@@ -184,14 +184,14 @@ public:
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < modeDeselected   , selectMode    , modeSelected   , &pp::select_mode                       >,
 
-      Row < modeSelected   , none    , ppInactive   , none, none                       >,
+      Row < modeSelected   , none    , Inactive   , none, none                       >,
       a_row < modeSelected   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
 
-      a_row < ppActive   , disablePP, ppInactive   , &pp::disable_pp                      >,
-      a_row < ppActive   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
+      a_row < Active   , disable, Inactive   , &pp::disable_mode                      >,
+      a_row < Active   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
 
-      a_row < ppInactive   , enablePP    , ppActive   , &pp::enable_pp                       >,
-      a_row < ppInactive   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
+      a_row < Inactive   , enable    , Active   , &pp::enable_mode                       >,
+      a_row < Inactive   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
       //    +---------+-------------+---------+---------------------+----------------------+
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < updateTarget   , setTarget    , updateTarget   , &pp::set_target                       >

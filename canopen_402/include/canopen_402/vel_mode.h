@@ -80,8 +80,8 @@ public:
   {
     storage_->entry(target_velocity, 0x6042);
   }
-  struct enableVel {};
-  struct disableVel {};
+  struct enable {};
+  struct disable {};
   struct selectMode {};
   struct deselectMode {};
 
@@ -99,7 +99,7 @@ public:
   void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: PPMode" << std::endl;*/}
 
   // The list of FSM states
-  struct velInactive : public msm::front::state<>
+  struct Inactive : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: PPInactive" << std::endl;*/}
@@ -115,7 +115,7 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
 
   };
-  struct velActive : public msm::front::state<>
+  struct Active : public msm::front::state<>
   {
     template <class Event,class FSM>
     void on_entry(Event const&,FSM& ) {/*std::cout << "starting: PPActive" << std::endl;*/}
@@ -143,17 +143,17 @@ public:
   // the initial state. Must be defined
   typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
-  void enable_vel(enableVel const&)
+  void enable_mode(enable const&)
   {
-    (*words_).control_word.set(CW_Operation_mode_specific0);
-    (*words_).control_word.set(CW_Operation_mode_specific1);
-    (*words_).control_word.set(CW_Operation_mode_specific2);
+    words_->control_word.set(CW_Operation_mode_specific0);
+    words_->control_word.set(CW_Operation_mode_specific1);
+    words_->control_word.set(CW_Operation_mode_specific2);
   }
-  void disable_vel(disableVel const&)
+  void disable_mode(disable const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
@@ -162,9 +162,9 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
-    (*words_).control_word.reset(CW_Operation_mode_specific0);
-    (*words_).control_word.reset(CW_Operation_mode_specific1);
-    (*words_).control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
 
   template <class setTarget> void set_target(setTarget const& evt)
@@ -180,14 +180,14 @@ public:
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < modeDeselected   , selectMode    , modeSelected   , &vel::select_mode                       >,
 
-      Row < modeSelected   , none    , velInactive   , none, none                       >,
+      Row < modeSelected   , none    , Inactive   , none, none                       >,
       a_row < modeSelected   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >,
 
-      a_row < velActive   , disableVel, velInactive   , &vel::disable_vel                      >,
-      a_row < velActive   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >,
+      a_row < Active   , disable, Inactive   , &vel::disable_mode                      >,
+      a_row < Active   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >,
 
-      a_row < velInactive   , enableVel    , velActive   , &vel::enable_vel                       >,
-      a_row < velInactive   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >,
+      a_row < Inactive   , enable    , Active   , &vel::enable_mode                       >,
+      a_row < Inactive   , deselectMode    , modeDeselected   , &vel::deselect_mode                       >,
       //    +---------+-------------+---------+---------------------+----------------------+
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < updateTarget   , setTarget    , updateTarget   , &vel::set_target                       >
