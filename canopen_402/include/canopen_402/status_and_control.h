@@ -169,14 +169,14 @@ public:
   // the initial state. Must be defined
   typedef writeControl initial_state;
   // transition actions
-  void write_control(newStatusWord const&)
+  void write_control(newControlWord const&)
   {
     int16_t cw_set = static_cast<int>((word_bitset_->control_word).to_ulong());
 
     control_word_entry_.set(cw_set);
   }
 
-  void read_status(newControlWord const&)
+  void read_status(newStatusWord const&)
   {
     std::bitset<16> sw_new(status_word_entry_.get());
 
@@ -229,8 +229,10 @@ public:
   struct transition_table : mpl::vector<
       //      Start     Event         Next      Action               Guard
       //    +---------+-------------+---------+---------------------+----------------------+
-      a_row < writeControl   , newStatusWord    , readStatus   , &pl::write_control                       >,
-      a_row < readStatus   , newControlWord, writeControl   , &pl::read_status                       >
+      a_row < writeControl   , newStatusWord    , readStatus   , &pl::read_status                       >,
+      a_row < writeControl   , newControlWord    , writeControl   , &pl::write_control                       >,
+      a_row < readStatus   , newControlWord, writeControl   , &pl::write_control                       >,
+      a_row < readStatus   , newStatusWord, readStatus   , &pl::read_status                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.

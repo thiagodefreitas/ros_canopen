@@ -142,7 +142,7 @@ private:
   virtual void processSW(LayerStatus &status);
 
 
-  virtual void processCW(LayerStatus &status);
+  virtual void processCW();
 
   virtual void pending(LayerStatus &status);
 

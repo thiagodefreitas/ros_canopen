@@ -60,8 +60,7 @@ using canopen::Node_402;
 void Node_402::pending(LayerStatus &status)
 {
   processSW(status);
-  motorEvent(highLevelSM::enterStandBy());
-  processCW(status);
+  processCW();
 }
 
 bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
@@ -69,17 +68,15 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
   boost::mutex::scoped_lock lock(mode_mutex_, boost::try_to_lock);
   if(!lock) return false;
 
-  std::cout << "enterModeandWait" << op_mode_var << std::endl;
   canopen::time_point abs_time = canopen::get_abs_time(boost::chrono::seconds(1));
   canopen::time_point actual_point;
 
   valid_mode_state_ = false;
 
-  motorEvent(highLevelSM::enterStandBy());
-
   if (isModeSupported(op_mode_var) || op_mode_var == OperationMode(No_Mode))
   {
     bool transition_success = motorEvent(highLevelSM::checkModeSwitch(op_mode_var));
+    motorEvent(highLevelSM::enterStandBy());
 
     while(transition_success == boost::msm::back::HANDLED_FALSE)
     {
@@ -88,8 +85,8 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
       {
         return false;
       }
-      motorEvent(highLevelSM::enterStandBy());
       transition_success = motorEvent(highLevelSM::checkModeSwitch(op_mode_var));
+      motorEvent(highLevelSM::enterStandBy());
     }
     valid_mode_state_ = true;
     return true;
@@ -138,7 +135,7 @@ void Node_402::handleWrite(LayerStatus &status, const LayerState &current_state)
     motorEvent(highLevelSM::enterStandBy());
   }
   move(status);
-  processCW(status);
+  processCW();
 }
 
 uint32_t Node_402::getModeMask(const OperationMode &op_mode)
@@ -161,7 +158,7 @@ uint32_t Node_402::getModeMask(const OperationMode &op_mode)
   return 0;
 }
 
-void Node_402::processCW(LayerStatus &status)
+void Node_402::processCW()
 {
   boost::mutex::scoped_lock lock(word_mutex_, boost::try_to_lock);
   if(!lock) return;
@@ -171,11 +168,7 @@ void Node_402::processCW(LayerStatus &status)
 
 void Node_402::move(LayerStatus &status)
 {
-  if((motor_feedback_->state != Operation_Enable) || (valid_mode_state_ == false))
-  {
-    motorEvent(highLevelSM::enterStandBy());
-  }
-  else
+  if((motor_feedback_->state == Operation_Enable) && (valid_mode_state_ == true))
   {
     bool transition_success = motorEvent(highLevelSM::enableMove(target_values_->target_pos, target_values_->target_vel));
   }
@@ -258,7 +251,7 @@ const double Node_402::getActualPos()
 
 void Node_402::setTargetVel(const double &target_vel)
 {
-  if (motor_feedback_->state == Operation_Enable)
+  if (motor_feedback_->state == Operation_Enable && valid_mode_state_)
   {
     target_values_->target_vel = target_vel;
   }
@@ -268,7 +261,7 @@ void Node_402::setTargetVel(const double &target_vel)
 
 void Node_402::setTargetPos(const double &target_pos)
 {
-  if (motor_feedback_->state == Operation_Enable)
+  if (motor_feedback_->state == Operation_Enable && valid_mode_state_)
   {
     target_values_->target_pos = target_pos;
   }

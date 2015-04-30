@@ -232,28 +232,28 @@ public:
   // transition actions
   void standby(enterStandBy const&)
   {
-    (*targets_).target_pos = motor_feedback_->actual_pos;
-    (*targets_).target_vel = 0;
+    targets_->target_pos = motor_feedback_->actual_pos;
+    targets_->target_vel = 0;
 
 
     if(isSupported(Velocity))
     {
-      velModeMachine_->process_event(velModeSM::setTarget((*targets_).target_vel));
+      velModeMachine_->process_event(velModeSM::setTarget(targets_->target_vel));
     }
 
     if(isSupported(Interpolated_Position))
     {
-      ipModeMachine_->process_event(IPModeSM::setTarget((*targets_).target_pos, (*targets_).target_vel));
+      ipModeMachine_->process_event(IPModeSM::setTarget(targets_->target_pos, targets_->target_vel));
     }
 
     if(isSupported(Profiled_Position))
     {
-      ppModeMachine_->process_event(ppModeSM::setTarget((*targets_).target_pos));
+      ppModeMachine_->process_event(ppModeSM::setTarget(targets_->target_pos));
     }
 
     if(isSupported(Profiled_Velocity))
     {
-      pvModeMachine_->process_event(pvModeSM::setTarget((*targets_).target_vel));
+      pvModeMachine_->process_event(pvModeSM::setTarget(targets_->target_vel));
     }
   }
 
@@ -330,29 +330,21 @@ public:
 
     case Interpolated_Position:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
-      if(words_->control_word.test(CW_Operation_mode_specific0))
-        BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
       modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
       break;
 
     case Velocity:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
-      if(words_->control_word.test(CW_Operation_mode_specific0))
-        BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
       modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
       break;
 
     case Profiled_Velocity:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
-      if(words_->control_word.test(CW_Operation_mode_specific0))
-        BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
       modeSwitchMachine.process_event(ModeSwitchSM::selectPV());
       break;
 
     case Profiled_Position:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
-      if(words_->control_word.test(CW_Operation_mode_specific0))
-        BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
       modeSwitchMachine.process_event(ModeSwitchSM::selectPP());
       break;
 
