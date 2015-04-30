@@ -145,6 +145,9 @@ public:
   // transition actions
   void enable_pv(enable const&)
   {
+    words_->control_word.reset(CW_Halt);
+
+
     words_->control_word.set(CW_Operation_mode_specific0);
     words_->control_word.set(CW_Operation_mode_specific1);
     words_->control_word.set(CW_Operation_mode_specific2);
@@ -152,6 +155,9 @@ public:
   }
   void disable_pv(disable const&)
   {
+    words_->control_word.set(CW_Halt);
+
+
     words_->control_word.reset(CW_Operation_mode_specific0);
     words_->control_word.reset(CW_Operation_mode_specific1);
     words_->control_word.reset(CW_Operation_mode_specific2);
@@ -160,10 +166,14 @@ public:
 
   void select_mode(selectMode const&)
   {
+    words_->control_word.set(CW_Halt);
+
 //    std::cout << "PVMode::selectModeINtern\n";
   }
   void deselect_mode(deselectMode const&)
   {
+    words_->control_word.set(CW_Halt);
+
     target_profiled_velocity.set(0.0);
 
     words_->control_word.reset(CW_Operation_mode_specific0);

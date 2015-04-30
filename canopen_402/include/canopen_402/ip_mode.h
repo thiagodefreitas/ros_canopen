@@ -150,6 +150,8 @@ public:
   // transition actions
   void enable_mode(enable const&)
   {
+    words_->control_word.reset(CW_Halt);
+
     words_->control_word.set(CW_Operation_mode_specific0);
     words_->control_word.reset(CW_Operation_mode_specific1);
     words_->control_word.reset(CW_Operation_mode_specific2);
@@ -170,6 +172,8 @@ public:
 
   void select_mode(selectMode const&)
   {
+    words_->control_word.reset(CW_Halt);
+
     words_->control_word.reset(CW_Operation_mode_specific0);
     words_->control_word.reset(CW_Operation_mode_specific1);
     words_->control_word.reset(CW_Operation_mode_specific2);
