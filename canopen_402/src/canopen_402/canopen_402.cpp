@@ -68,23 +68,26 @@ bool Node_402::enterModeAndWait(const OperationMode &op_mode_var)
   boost::mutex::scoped_lock lock(mode_mutex_, boost::try_to_lock);
   if(!lock) return false;
 
+  motorEvent(highLevelSM::enterStandBy());
+  valid_mode_state_ = false;
+
   canopen::time_point abs_time = canopen::get_abs_time(boost::chrono::seconds(1));
   canopen::time_point actual_point;
 
-  valid_mode_state_ = false;
-
   if (isModeSupported(op_mode_var) || op_mode_var == OperationMode(No_Mode))
   {
+
     bool transition_success = motorEvent(highLevelSM::checkModeSwitch(op_mode_var));
     motorEvent(highLevelSM::enterStandBy());
 
     while(transition_success == boost::msm::back::HANDLED_FALSE)
     {
       actual_point = boost::chrono::high_resolution_clock::now();
-      if(boost::chrono::duration_cast<boost::chrono::milliseconds>(actual_point - abs_time).count() >= 0 )
-      {
-        return false;
-      }
+      if(op_mode_var != OperationMode(Homing))
+        if(boost::chrono::duration_cast<boost::chrono::milliseconds>(actual_point - abs_time).count() >= 0 )
+        {
+          return false;
+        }
       transition_success = motorEvent(highLevelSM::checkModeSwitch(op_mode_var));
       motorEvent(highLevelSM::enterStandBy());
     }
