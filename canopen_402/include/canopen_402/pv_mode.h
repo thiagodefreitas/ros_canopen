@@ -145,40 +145,40 @@ public:
   // transition actions
   void enable_pv(enable const&)
   {
-    words_->control_word.reset(CW_Halt);
+    words_->control_word.reset(enums402::CW_Halt);
 
 
-    words_->control_word.set(CW_Operation_mode_specific0);
-    words_->control_word.set(CW_Operation_mode_specific1);
-    words_->control_word.set(CW_Operation_mode_specific2);
+    words_->control_word.set(enums402::CW_Operation_mode_specific0);
+    words_->control_word.set(enums402::CW_Operation_mode_specific1);
+    words_->control_word.set(enums402::CW_Operation_mode_specific2);
 //    std::cout << "pvMode::enable_pvINtern\n";
   }
   void disable_pv(disable const&)
   {
-    words_->control_word.set(CW_Halt);
+    words_->control_word.set(enums402::CW_Halt);
 
 
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
 //    std::cout << "pvMode::disable_pvIntern\n";
   }
 
   void select_mode(selectMode const&)
   {
-    words_->control_word.set(CW_Halt);
+    words_->control_word.set(enums402::CW_Halt);
 
 //    std::cout << "PVMode::selectModeINtern\n";
   }
   void deselect_mode(deselectMode const&)
   {
-    words_->control_word.set(CW_Halt);
+    words_->control_word.set(enums402::CW_Halt);
 
     target_profiled_velocity.set(0.0);
 
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
 //    std::cout << "pvMode::deselect_pvINtern\n";
   }
 

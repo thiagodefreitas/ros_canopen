@@ -73,18 +73,18 @@ public:
     target_values_ = boost::make_shared<StatusandControl::commandTargets>();
     motor_feedback_ = boost::make_shared<StatusandControl::motorFeedback>();
 
-    SwCwSM = StatusandControl(words_, motor_feedback_, storage_);
-    motorAbstraction = highLevelSM(words_, target_values_, motor_feedback_, storage_);
-    SwCwSM.start();
+    SwCwSM = boost::make_shared<StatusandControl>(words_, motor_feedback_, storage_);
+    motorAbstraction = highLevelSM(words_, target_values_, motor_feedback_, storage_, SwCwSM);
+    SwCwSM->start();
     motorAbstraction.start();
-    SwCwSM.process_event(StatusandControl::readStatus());
+    SwCwSM->process_event(StatusandControl::readStatus());
   }
 
-  const OperationMode getMode();
+  const  enums402::OperationMode getMode();
 
-  bool enterModeAndWait(const OperationMode &op_mode);
-  bool isModeSupported(const OperationMode &op_mode);
-  static uint32_t getModeMask(const OperationMode &op_mode);
+  bool enterModeAndWait(const enums402::OperationMode &op_mode);
+  bool isModeSupported(const enums402::OperationMode &op_mode);
+  static uint32_t getModeMask(const enums402::OperationMode &op_mode);
 
 
   const double getActualPos();
@@ -117,6 +117,7 @@ private:
   boost::mutex cond_mutex_;
   boost::mutex mode_mutex_;
 
+  boost::condition_variable cond_mode_;
   boost::condition_variable cond_event_;
 
   bool valid_mode_state_;
@@ -124,11 +125,11 @@ private:
   boost::shared_ptr<double> target_vel_;
   boost::shared_ptr<double> target_pos_;
 
-  OperationMode default_operation_mode_;
+  enums402::OperationMode default_operation_mode_;
 
   boost::shared_ptr<StatusandControl::wordBitset> words_;
 
-  StatusandControl SwCwSM;
+  boost::shared_ptr<StatusandControl> SwCwSM;
   highLevelSM motorAbstraction;
 
   boost::shared_ptr<StatusandControl::commandTargets> target_values_;
@@ -148,6 +149,8 @@ private:
 
   bool turnOn(LayerStatus &status);
   bool turnOff(LayerStatus &status);
+
+  bool transition_success_;
 
 protected:
 

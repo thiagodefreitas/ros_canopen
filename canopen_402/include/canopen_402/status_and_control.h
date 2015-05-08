@@ -86,10 +86,10 @@ public:
     double actual_pos;
     double actual_vel;
     double actual_eff;
-    InternalState state;
-    OperationMode current_mode;
+    enums402::InternalState state;
+    enums402::OperationMode current_mode;
     bool target_reached;
-    motorFeedback() : actual_pos(0), actual_vel(0), actual_eff(0), state(Start), current_mode(No_Mode), target_reached(false){}
+    motorFeedback() : actual_pos(0), actual_vel(0), actual_eff(0), state(enums402::Start), current_mode(enums402::No_Mode), target_reached(false){}
   };
 
   struct wordBitset
@@ -100,10 +100,14 @@ public:
     wordBitset() : status_word(), control_word() {}
   };
 
-  StatusandControl_(){}
+
+  StatusandControl_(){
+  }
   StatusandControl_(const boost::shared_ptr<wordBitset> word_bitset, const boost::shared_ptr<motorFeedback> &motor_feedback,
                     boost::shared_ptr<ObjectStorage> storage) : word_bitset_(word_bitset), motor_feedback_(motor_feedback), storage_(storage)
   {
+    state_change_mutex_ = boost::make_shared<boost::mutex>();
+    cond_state_change_ = boost::make_shared<boost::condition_variable>();
     storage_->entry(status_word_entry_, 0x6041);
     storage_->entry(control_word_entry_, 0x6040);
     storage_->entry(op_mode_display, 0x6061);
@@ -111,13 +115,13 @@ public:
     storage_->entry(actual_vel, 0x606C);
     storage_->entry(actual_pos, 0x6064);
 
-    status_word_mask_.set(SW_Ready_To_Switch_On);
-    status_word_mask_.set(SW_Switched_On);
-    status_word_mask_.set(SW_Operation_enabled);
-    status_word_mask_.set(SW_Fault);
-    status_word_mask_.reset(SW_Voltage_enabled);
-    status_word_mask_.set(SW_Quick_stop);
-    status_word_mask_.set(Switch_On_Disabled);
+    status_word_mask_.set(enums402::SW_Ready_To_Switch_On);
+    status_word_mask_.set(enums402::SW_Switched_On);
+    status_word_mask_.set(enums402::SW_Operation_enabled);
+    status_word_mask_.set(enums402::SW_Fault);
+    status_word_mask_.reset(enums402::SW_Voltage_enabled);
+    status_word_mask_.set(enums402::SW_Quick_stop);
+    status_word_mask_.set(enums402::Switch_On_Disabled);
   }
 
   struct commandTargets
@@ -131,6 +135,14 @@ public:
 
   struct newStatusWord {};
   struct newControlWord {};
+  struct checkStateChange
+  {
+    enums402::InternalState target_state;
+    canopen::time_point timeout;
+
+    checkStateChange(enums402::InternalState targetState, canopen::time_point timeOut) : target_state(targetState), timeout(timeOut) {}
+  };
+
 
   template <class Event,class FSM>
   void on_entry(Event const&,FSM& ) {/*std::cout << "entering: StatusandControl" << std::endl;*/}
@@ -166,14 +178,44 @@ public:
     }
   };
 
+  struct stateCheck : public msm::front::state<>
+  {
+    template <class Event,class FSM>
+    void on_entry(Event const&,FSM& )
+    {
+      //std::cout << "starting: readStatus" << std::endl;
+    }
+    template <class Event,class FSM>
+    void on_exit(Event const&,FSM& )
+    {
+      //std::cout << "finishing: readStatus" << std::endl;
+    }
+  };
+
   // the initial state. Must be defined
-  typedef writeControl initial_state;
+  typedef mpl::vector<writeControl,stateCheck> initial_state;
   // transition actions
   void write_control(newControlWord const&)
   {
     int16_t cw_set = static_cast<int>((word_bitset_->control_word).to_ulong());
 
     control_word_entry_.set(cw_set);
+  }
+
+  template <class checkStateChange> void check_state_change(checkStateChange const& evt)
+  {
+    boost::mutex::scoped_lock cond_lock(*state_change_mutex_);
+    if(!cond_lock)
+      BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
+
+    while(motor_feedback_->state!=evt.target_state)
+    {
+      std::cout << "scd" << std::endl;
+      if(cond_state_change_->wait_until(cond_lock,evt.timeout)  == boost::cv_status::timeout)
+      {
+        BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
+      }
+    }
   }
 
   void read_status(newStatusWord const&)
@@ -185,54 +227,57 @@ public:
     {
     case 0b0000000:
     case 0b0100000:
-      motor_feedback_->state = Not_Ready_To_Switch_On;
+      motor_feedback_->state = enums402::Not_Ready_To_Switch_On;
       break;
     case 0b1000000:
     case 0b1100000:
-      motor_feedback_->state =  Switch_On_Disabled;
+      motor_feedback_->state =  enums402::Switch_On_Disabled;
       break;
     case 0b0100001:
-      motor_feedback_->state =  Ready_To_Switch_On;
+      motor_feedback_->state =  enums402::Ready_To_Switch_On;
       break;
     case 0b0100011:
-      motor_feedback_->state =  Switched_On;
+      motor_feedback_->state =  enums402::Switched_On;
       break;
     case 0b0100111:
-      motor_feedback_->state =  Operation_Enable;
+      motor_feedback_->state =  enums402::Operation_Enable;
       break;
     case 0b0000111:
-      motor_feedback_->state =  Quick_Stop_Active;
+      motor_feedback_->state =  enums402::Quick_Stop_Active;
       break;
     case 0b0001111:
     case 0b0101111:
-      motor_feedback_->state =  Fault_Reaction_Active;
+      motor_feedback_->state =  enums402::Fault_Reaction_Active;
       break;
     case 0b0001000:
     case 0b0101000:
-      motor_feedback_->state =  Fault;
+      motor_feedback_->state =  enums402::Fault;
       break;
     default:
       LOG("Motor currently in an unknown state");
     }
 
-    motor_feedback_->current_mode = (OperationMode) op_mode_display.get();
+    motor_feedback_->current_mode = (enums402::OperationMode) op_mode_display.get();
     motor_feedback_->actual_vel = actual_vel.get();
     motor_feedback_->actual_pos = actual_pos.get();
     motor_feedback_->actual_eff = 0; //Currently,no effort value is directly obtained from the HW
 
-    motor_feedback_->target_reached = word_bitset_->status_word.test(SW_Target_reached); //Currently,no effort value is directly obtained from the HW
+    motor_feedback_->target_reached = word_bitset_->status_word.test(enums402::SW_Target_reached); //Currently,no effort value is directly obtained from the HW
   }
   // guard conditions
 
-  typedef StatusandControl_ pl; // makes transition table cleaner
+  typedef StatusandControl_ sc; // makes transition table cleaner
   // Transition table for StatusandControl
   struct transition_table : mpl::vector<
       //      Start     Event         Next      Action               Guard
       //    +---------+-------------+---------+---------------------+----------------------+
-      a_row < writeControl   , newStatusWord    , readStatus   , &pl::read_status                       >,
-      a_row < writeControl   , newControlWord    , writeControl   , &pl::write_control                       >,
-      a_row < readStatus   , newControlWord, writeControl   , &pl::write_control                       >,
-      a_row < readStatus   , newStatusWord, readStatus   , &pl::read_status                       >
+      a_row < writeControl   , newStatusWord    , readStatus   , &sc::read_status                       >,
+      a_row < writeControl   , newControlWord    , writeControl   , &sc::write_control                       >,
+      a_row < readStatus   , newControlWord, writeControl   , &sc::write_control                       >,
+      a_row < readStatus   , newStatusWord, readStatus   , &sc::read_status                       >,
+      //    +---------+-------------+---------+---------------------+----------------------+
+      //    +---------+-------------+---------+---------------------+----------------------+
+      a_row < stateCheck   , checkStateChange    , stateCheck   , &sc::check_state_change                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.
@@ -242,6 +287,9 @@ public:
     //    std::cout << "no transition from state " << state
     //              << " on event " << typeid(e).name() << std::endl;
   }
+
+  template <class FSM,class Event>
+  void exception_caught (Event const&,FSM& fsm,std::exception& ){}
 
 private:
   boost::shared_ptr<wordBitset> word_bitset_;
@@ -259,7 +307,8 @@ private:
 
   canopen::ObjectStorage::Entry<int8_t>  op_mode_display;
 
-
+  boost::shared_ptr<boost::mutex>state_change_mutex_;
+  boost::shared_ptr<boost::condition_variable> cond_state_change_;
 };
 // back-end
 typedef msm::back::state_machine<StatusandControl_> StatusandControl;

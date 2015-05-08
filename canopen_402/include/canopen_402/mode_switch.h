@@ -92,10 +92,10 @@ public:
 
   struct deactivateMode
   {
-    OperationMode op_mode;
+    enums402::OperationMode op_mode;
 
-    deactivateMode() : op_mode(No_Mode) {}
-    deactivateMode( OperationMode mode) : op_mode(mode){}
+    deactivateMode() : op_mode(enums402::No_Mode) {}
+    deactivateMode( enums402::OperationMode mode) : op_mode(mode){}
   };
 
   template <class Event,class FSM>
@@ -190,27 +190,27 @@ public:
   {
     switch(evt.op_mode)
     {
-    case Interpolated_Position:
+    case enums402::Interpolated_Position:
       ip_machine_->process_event(IPModeSM::disable());
       ip_machine_->process_event(IPModeSM::deselectMode());
       break;
 
-    case Velocity:
+    case enums402::Velocity:
       vel_machine_->process_event(velModeSM::disable());
       vel_machine_->process_event(velModeSM::deselectMode());
       break;
 
-    case Homing:
+    case enums402::Homing:
       homing_machine_->process_event(HomingSM::disable());
       homing_machine_->process_event(HomingSM::deselectMode());
       break;
 
-    case Profiled_Velocity:
+    case enums402::Profiled_Velocity:
       pv_machine_->process_event(pvModeSM::disable());
       pv_machine_->process_event(pvModeSM::deselectMode());
       break;
 
-    case Profiled_Position:
+    case enums402::Profiled_Position:
       pp_machine_->process_event(ppModeSM::disable());
       pp_machine_->process_event(ppModeSM::deselectMode());
       break;

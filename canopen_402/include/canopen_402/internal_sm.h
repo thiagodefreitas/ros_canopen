@@ -152,81 +152,81 @@ public:
   // transition actions
   void shutdown_motor(shutdown const&)
   {
-    words_->control_word.reset(CW_Switch_On);
-    words_->control_word.set(CW_Enable_Voltage);
-    words_->control_word.set(CW_Quick_Stop);
-    words_->control_word.reset(CW_Fault_Reset);
-    words_->control_word.reset(CW_Enable_Operation);
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(enums402::CW_Switch_On);
+    words_->control_word.set(enums402::CW_Enable_Voltage);
+    words_->control_word.set(enums402::CW_Quick_Stop);
+    words_->control_word.reset(enums402::CW_Fault_Reset);
+    words_->control_word.reset(enums402::CW_Enable_Operation);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void turn_on(switch_on const&)
   {
-    words_->control_word.set(CW_Switch_On);
-    words_->control_word.set(CW_Enable_Voltage);
-    words_->control_word.set(CW_Quick_Stop);
-    words_->control_word.reset(CW_Fault_Reset);
-    words_->control_word.reset(CW_Enable_Operation);
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.set(enums402::CW_Switch_On);
+    words_->control_word.set(enums402::CW_Enable_Voltage);
+    words_->control_word.set(enums402::CW_Quick_Stop);
+    words_->control_word.reset(enums402::CW_Fault_Reset);
+    words_->control_word.reset(enums402::CW_Enable_Operation);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void turn_off(disable_voltage const&)
   {
-    words_->control_word.reset(CW_Switch_On);
-    words_->control_word.reset(CW_Enable_Voltage);
-    words_->control_word.set(CW_Quick_Stop);
-    words_->control_word.reset(CW_Fault_Reset);
-    words_->control_word.reset(CW_Enable_Operation);
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(enums402::CW_Switch_On);
+    words_->control_word.reset(enums402::CW_Enable_Voltage);
+    words_->control_word.set(enums402::CW_Quick_Stop);
+    words_->control_word.reset(enums402::CW_Fault_Reset);
+    words_->control_word.reset(enums402::CW_Enable_Operation);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void activate_QS(quick_stop const&)
   {
-    words_->control_word.reset(CW_Switch_On);
-    words_->control_word.set(CW_Enable_Voltage);
-    words_->control_word.reset(CW_Quick_Stop);
-    words_->control_word.reset(CW_Fault_Reset);
-    words_->control_word.reset(CW_Enable_Operation);
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(enums402::CW_Switch_On);
+    words_->control_word.set(enums402::CW_Enable_Voltage);
+    words_->control_word.reset(enums402::CW_Quick_Stop);
+    words_->control_word.reset(enums402::CW_Fault_Reset);
+    words_->control_word.reset(enums402::CW_Enable_Operation);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void operate(enable_op const&)
   {
-    words_->control_word.set(CW_Switch_On);
-    words_->control_word.set(CW_Enable_Voltage);
-    words_->control_word.set(CW_Quick_Stop);
-    words_->control_word.reset(CW_Fault_Reset);
-    words_->control_word.set(CW_Enable_Operation);
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.set(enums402::CW_Switch_On);
+    words_->control_word.set(enums402::CW_Enable_Voltage);
+    words_->control_word.set(enums402::CW_Quick_Stop);
+    words_->control_word.reset(enums402::CW_Fault_Reset);
+    words_->control_word.set(enums402::CW_Enable_Operation);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void stop_operation(disable_op const&)
   {
-    words_->control_word.set(CW_Switch_On);
-    words_->control_word.set(CW_Enable_Voltage);
-    words_->control_word.set(CW_Quick_Stop);
-    words_->control_word.reset(CW_Fault_Reset);
-    words_->control_word.reset(CW_Enable_Operation);
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.set(enums402::CW_Switch_On);
+    words_->control_word.set(enums402::CW_Enable_Voltage);
+    words_->control_word.set(enums402::CW_Quick_Stop);
+    words_->control_word.reset(enums402::CW_Fault_Reset);
+    words_->control_word.reset(enums402::CW_Enable_Operation);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   void reset_fault(fault_reset const&)
   {
-    words_->control_word.set(CW_Fault_Reset);
-    words_->control_word.reset(CW_Switch_On);
-    words_->control_word.reset(CW_Enable_Voltage);
-    words_->control_word.reset(CW_Quick_Stop);
-    words_->control_word.reset(CW_Enable_Operation);
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.set(enums402::CW_Fault_Reset);
+    words_->control_word.reset(enums402::CW_Switch_On);
+    words_->control_word.reset(enums402::CW_Enable_Voltage);
+    words_->control_word.reset(enums402::CW_Quick_Stop);
+    words_->control_word.reset(enums402::CW_Enable_Operation);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   // guard conditions

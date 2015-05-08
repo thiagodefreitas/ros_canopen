@@ -83,8 +83,8 @@ class highLevelSM_ : public msm::front::state_machine_def<highLevelSM_>
 {
 public:
   highLevelSM_(){}
-  highLevelSM_(boost::shared_ptr<StatusandControl::wordBitset> &words,  boost::shared_ptr<StatusandControl::commandTargets> target,boost::shared_ptr<StatusandControl::motorFeedback> feedback, boost::shared_ptr<ObjectStorage> &storage)
-    : words_(words), targets_(target), motor_feedback_(feedback), previous_mode_(No_Mode), storage_(storage)
+  highLevelSM_(boost::shared_ptr<StatusandControl::wordBitset> &words,  boost::shared_ptr<StatusandControl::commandTargets> target,boost::shared_ptr<StatusandControl::motorFeedback> feedback, boost::shared_ptr<ObjectStorage> &storage, boost::shared_ptr<StatusandControl> &statusandControlMachine)
+    : words_(words), targets_(target), motor_feedback_(feedback), previous_mode_(enums402::No_Mode), storage_(storage), statusandControlMachine_(statusandControlMachine)
   {
     ///////////////////*
     ///
@@ -101,31 +101,31 @@ public:
     motorStateMachine.start();
     motorStateMachine.process_event(motorSM::boot());
 
-    if(isSupported(Homing))
+    if(isSupported(enums402::Homing))
     {
       homingModeMachine_ = boost::make_shared<HomingSM>(HomingSM(words_));
       homingModeMachine_->start();
     }
 
-    if(isSupported(Velocity))
+    if(isSupported(enums402::Velocity))
     {
       velModeMachine_ = boost::make_shared<velModeSM>(velModeSM(words_, storage_));
       velModeMachine_->start();
     }
 
-    if(isSupported(Interpolated_Position))
+    if(isSupported(enums402::Interpolated_Position))
     {
       ipModeMachine_ = boost::make_shared<IPModeSM>(IPModeSM(words_, storage_));
       ipModeMachine_->start();
     }
 
-    if(isSupported(Profiled_Position))
+    if(isSupported(enums402::Profiled_Position))
     {
       ppModeMachine_ = boost::make_shared<ppModeSM>(ppModeSM(words_, storage_));
       ppModeMachine_->start();
     }
 
-    if(isSupported(Profiled_Velocity))
+    if(isSupported(enums402::Profiled_Velocity))
     {
       pvModeMachine_ = boost::make_shared<pvModeSM>(pvModeSM(words_, storage_));
       pvModeMachine_->start();
@@ -144,12 +144,12 @@ public:
 
   struct checkModeSwitch
   {
-    OperationMode op_mode;
+    enums402::OperationMode op_mode;
     int timeout;
 
     checkModeSwitch() : op_mode(), timeout(0) {}
-    checkModeSwitch( OperationMode mode) : op_mode(mode), timeout(0) {}
-    checkModeSwitch( OperationMode mode, int timeOut) : op_mode(mode), timeout(timeOut) {}
+    checkModeSwitch( enums402::OperationMode mode) : op_mode(mode), timeout(0) {}
+    checkModeSwitch( enums402::OperationMode mode, int timeOut) : op_mode(mode), timeout(timeOut) {}
   };
   struct enableMove
   {
@@ -163,19 +163,17 @@ public:
 
   struct checkModeSupport
   {
-    OperationMode op_mode;
+    enums402::OperationMode op_mode;
 
-    checkModeSupport( OperationMode mode) : op_mode(mode) {}
+    checkModeSupport( enums402::OperationMode mode) : op_mode(mode) {}
   };
 
   struct runMotorSM
   {
-    InternalActions action;
-    int timeout;
+    enums402::InternalActions action;
+    canopen::time_point timeout;
 
-    runMotorSM() : action(), timeout(0) {}
-    runMotorSM(InternalActions actionToTake) : action(actionToTake), timeout(0) {}
-    runMotorSM(InternalActions actionToTake, int timeOut) : action(actionToTake), timeout(timeOut) {}
+    runMotorSM(enums402::InternalActions actionToTake, canopen::time_point timeOut) : action(actionToTake), timeout(timeOut) {}
   };
 
   motorSM motorStateMachine;
@@ -234,75 +232,62 @@ public:
   {
     targets_->target_pos = motor_feedback_->actual_pos;
     targets_->target_vel = 0;
-
-
-    if(isSupported(Velocity))
-    {
-      velModeMachine_->process_event(velModeSM::setTarget(targets_->target_vel));
-    }
-
-    if(isSupported(Interpolated_Position))
-    {
-      ipModeMachine_->process_event(IPModeSM::setTarget(targets_->target_pos, targets_->target_vel));
-    }
-
-    if(isSupported(Profiled_Position))
-    {
-      ppModeMachine_->process_event(ppModeSM::setTarget(targets_->target_pos));
-    }
-
-    if(isSupported(Profiled_Velocity))
-    {
-      pvModeMachine_->process_event(pvModeSM::setTarget(targets_->target_vel));
-    }
   }
 
 
   template <class runMotorSM> void motor_sm(runMotorSM const& evt)
   {
+    bool transition_success;
+
     switch(evt.action)
     {
-    case QuickStop:
+    case enums402::QuickStop:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       motorStateMachine.process_event(motorSM::quick_stop());
-      if(motor_feedback_->state != Quick_Stop_Active)
+      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Quick_Stop_Active, evt.timeout));
+      if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
-    case FaultReset:
+    case enums402::FaultReset:
       motorStateMachine.process_event(motorSM::fault_reset());
-      if(motor_feedback_->state == Fault)
+      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Fault, evt.timeout));
+      if(transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
-    case ShutdownMotor:
+    case enums402::ShutdownMotor:
       motorStateMachine.process_event(motorSM::shutdown());
-      if(motor_feedback_->state != Ready_To_Switch_On)
+      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Ready_To_Switch_On, evt.timeout));
+      if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
-    case SwitchOn:
+    case enums402::SwitchOn:
       motorStateMachine.process_event(motorSM::switch_on());
-      if(motor_feedback_->state != Switched_On)
+      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Switched_On, evt.timeout));
+      if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
-    case EnableOp:
+    case enums402::EnableOp:
       motorStateMachine.process_event(motorSM::enable_op());
-      if(motor_feedback_->state != Operation_Enable)
+      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Operation_Enable, evt.timeout));
+      if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
-    case FaultEnable:
+    case enums402::FaultEnable:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       motorStateMachine.process_event(motorSM::fault());
-      if(motor_feedback_->state != Fault)
+      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Fault, evt.timeout));
+      if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
-    case DisableQuickStop:
+    case enums402::DisableQuickStop:
       motorStateMachine.process_event(motorSM::disable_voltage());
-      if(motor_feedback_->state != Not_Ready_To_Switch_On && motor_feedback_->state != Switch_On_Disabled)
+      if(motor_feedback_->state != enums402::Not_Ready_To_Switch_On && motor_feedback_->state != enums402::Switch_On_Disabled)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
@@ -313,7 +298,7 @@ public:
 
   template <class checkModeSwitch> void mode_switch(checkModeSwitch const& evt)
   {
-    if(motor_feedback_->current_mode != evt.op_mode && evt.op_mode != No_Mode)
+    if(motor_feedback_->current_mode != evt.op_mode && evt.op_mode != enums402::No_Mode)
     {
       previous_mode_ = motor_feedback_->current_mode;
       op_mode.set_cached(evt.op_mode);
@@ -324,31 +309,31 @@ public:
     switch(evt.op_mode)
     {
     bool transition_sucess;
-    case No_Mode:
+    case enums402::No_Mode:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       break;
 
-    case Interpolated_Position:
+    case enums402::Interpolated_Position:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
       break;
 
-    case Velocity:
+    case enums402::Velocity:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
       break;
 
-    case Profiled_Velocity:
+    case enums402::Profiled_Velocity:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       modeSwitchMachine.process_event(ModeSwitchSM::selectPV());
       break;
 
-    case Profiled_Position:
+    case enums402::Profiled_Position:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       modeSwitchMachine.process_event(ModeSwitchSM::selectPP());
       break;
 
-    case Homing:
+    case enums402::Homing:
       if (!homing_method.valid() && homing_method.get() == 0)
       {
         BOOST_THROW_EXCEPTION(std::invalid_argument("Homing invalid"));
@@ -368,25 +353,25 @@ public:
     }
   }
 
-  bool isSupported(const OperationMode &op_mode)
+  bool isSupported(const enums402::OperationMode &op_mode)
   {
     uint32_t masked_mode;
     bool supported;
 
     switch(op_mode)
     {
-    case Profiled_Position:
-    case Velocity:
-    case Profiled_Velocity:
-    case Profiled_Torque:
-    case Interpolated_Position:
-    case Cyclic_Synchronous_Position:
-    case Cyclic_Synchronous_Velocity:
-    case Cyclic_Synchronous_Torque:
-    case Homing:
+    case enums402::Profiled_Position:
+    case enums402::Velocity:
+    case enums402::Profiled_Velocity:
+    case enums402::Profiled_Torque:
+    case enums402::Interpolated_Position:
+    case enums402::Cyclic_Synchronous_Position:
+    case enums402::Cyclic_Synchronous_Velocity:
+    case enums402::Cyclic_Synchronous_Torque:
+    case enums402::Homing:
       masked_mode = (1<<(op_mode-1));
       break;
-    case No_Mode:
+    case enums402::No_Mode:
     default:
       masked_mode = 0;
       break;
@@ -409,7 +394,7 @@ public:
   {
     switch(motor_feedback_->current_mode)
     {
-    case Interpolated_Position:
+    case enums402::Interpolated_Position:
       //      std::cout << "move IP:" << ipModeMachine_->current_state()[0] <<  std::endl;
       //      std::cout << "mode machine State:" << modeSwitchMachine.current_state()[0] <<  std::endl;
       ipModeMachine_->process_event(IPModeSM::selectMode());
@@ -417,24 +402,24 @@ public:
       ipModeMachine_->process_event(IPModeSM::setTarget(evt.pos, evt.vel));
       break;
 
-    case Velocity:
+    case enums402::Velocity:
       velModeMachine_->process_event(velModeSM::selectMode());
       velModeMachine_->process_event(velModeSM::enable());
       velModeMachine_->process_event(velModeSM::setTarget(evt.vel));
       break;
 
-    case Homing:
+    case enums402::Homing:
       homingModeMachine_->process_event(HomingSM::enable());
       homingModeMachine_->current_state();
       break;
 
-    case Profiled_Position:
+    case enums402::Profiled_Position:
       ppModeMachine_->process_event(ppModeSM::selectMode());
       ppModeMachine_->process_event(ppModeSM::enable());
       ppModeMachine_->process_event(ppModeSM::setTarget(evt.pos));
       break;
 
-    case Profiled_Velocity:
+    case enums402::Profiled_Velocity:
       pvModeMachine_->process_event(pvModeSM::selectMode());
       pvModeMachine_->process_event(pvModeSM::enable());
       pvModeMachine_->process_event(pvModeSM::setTarget(evt.vel));
@@ -554,13 +539,14 @@ private:
 
   boost::shared_ptr<StatusandControl::commandTargets> targets_;
   boost::shared_ptr<StatusandControl::motorFeedback> motor_feedback_;
-  OperationMode previous_mode_;
+  enums402::OperationMode previous_mode_;
 
   boost::shared_ptr<IPModeSM> ipModeMachine_;
   boost::shared_ptr<HomingSM> homingModeMachine_;
   boost::shared_ptr<velModeSM> velModeMachine_;
   boost::shared_ptr<ppModeSM> ppModeMachine_;
   boost::shared_ptr<pvModeSM> pvModeMachine_;
+  boost::shared_ptr<StatusandControl> statusandControlMachine_;
 
   boost::shared_ptr<ObjectStorage> storage_;
 

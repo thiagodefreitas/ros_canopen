@@ -78,11 +78,11 @@ public:
   HomingSM_(){}
   HomingSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words)
   {
-    homing_mask_.set(SW_Target_reached);
-    homing_mask_.set(SW_Operation_specific0);
-    homing_mask_.set(SW_Operation_specific1);
+    homing_mask_.set(enums402::SW_Target_reached);
+    homing_mask_.set(enums402::SW_Operation_specific0);
+    homing_mask_.set(enums402::SW_Operation_specific1);
 
-    homing_state_ = boost::make_shared<HomingState>(NotStarted);
+    homing_state_ = boost::make_shared<enums402::HomingState>(enums402::NotStarted);
   }
   struct enable {};
   struct disable {};
@@ -142,16 +142,15 @@ public:
   // transition actions
   void enable_mode(enable const&)
   {
-
-    words_->control_word.set(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.set(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
     //    std::cout << "homingMode::enable_homing";
   }
   void disable_mode(disable const&)
   {
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
@@ -161,7 +160,7 @@ public:
 
   void update_homing(runHomingCheck const&)
   {
-    words_->control_word.set(CW_Operation_mode_specific0);
+    words_->control_word.set(enums402::CW_Operation_mode_specific0);
 
     switch ((words_->status_word & homing_mask_).to_ulong())
     {
@@ -179,38 +178,38 @@ public:
     //-------------------------------------------------------------//
     case 0:
       BOOST_THROW_EXCEPTION(std::invalid_argument("Homing in progress"));
-      *homing_state_ = Progress;
+      *homing_state_ = enums402::Progress;
       break;
-    case (1<<SW_Target_reached):
-      *homing_state_ = NotStarted;
+    case (1<<enums402::SW_Target_reached):
+      *homing_state_ = enums402::NotStarted;
       BOOST_THROW_EXCEPTION(std::invalid_argument("Homing started"));
       break;
-    case (1<<SW_Operation_specific0):
-      *homing_state_ = Attained;
+    case (1<<enums402::SW_Operation_specific0):
+      *homing_state_ = enums402::Attained;
       BOOST_THROW_EXCEPTION(std::invalid_argument("Homing attained"));
       break;
-    case ((1<<SW_Operation_specific0) | (1<<SW_Target_reached)):
-      *homing_state_ = HomingSuccess;
+    case ((1<<enums402::SW_Operation_specific0) | (1<<enums402::SW_Target_reached)):
+      *homing_state_ = enums402::HomingSuccess;
       break;
-    case (1<<SW_Operation_specific1):
-      *homing_state_ = HomingError;
+    case (1<<enums402::SW_Operation_specific1):
+      *homing_state_ = enums402::HomingError;
       BOOST_THROW_EXCEPTION(std::invalid_argument("Error, vel!=0"));
       break;
-    case ((1<<SW_Operation_specific1) | (1<<SW_Target_reached)):
-      *homing_state_ = HomingError;
+    case ((1<<enums402::SW_Operation_specific1) | (1<<enums402::SW_Target_reached)):
+      *homing_state_ = enums402::HomingError;
       BOOST_THROW_EXCEPTION(std::invalid_argument("Error, vel=0"));
       break;
-    case (1<<SW_Operation_specific1 | 1<<SW_Operation_specific0):
-    case (1<<SW_Operation_specific1 | 1<<SW_Operation_specific0 | 1<<SW_Target_reached):
+    case (1<<enums402::SW_Operation_specific1 | 1<<enums402::SW_Operation_specific0):
+    case (1<<enums402::SW_Operation_specific1 | 1<<enums402::SW_Operation_specific0 | 1<<enums402::SW_Target_reached):
       BOOST_THROW_EXCEPTION(std::invalid_argument("Homing reserved"));
       break;
     }
   }
   void deselect_mode(deselectMode const&)
   {
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -248,7 +247,7 @@ public:
   }
 private:
   boost::shared_ptr<StatusandControl::wordBitset> words_;
-  boost::shared_ptr<HomingState> homing_state_;
+  boost::shared_ptr<enums402::HomingState> homing_state_;
 
   std::bitset<16> homing_mask_;
 
