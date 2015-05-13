@@ -152,8 +152,8 @@ public:
 
 
     words_->control_word.set(enums402::CW_Operation_mode_specific0);
-    words_->control_word.set(enums402::CW_Operation_mode_specific1);
-    words_->control_word.set(enums402::CW_Operation_mode_specific2);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
+    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
     std::cout << "ppMode::enable_pp\n";
   }
   void disable_mode(disable const&)
