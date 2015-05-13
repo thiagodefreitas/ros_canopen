@@ -55,6 +55,7 @@
 
 #include <canopen_402/canopen_402.h>
 #include <canopen_402/status_and_control.h>
+#include <ctime>
 
 using canopen::Node_402;
 
@@ -109,7 +110,7 @@ bool Node_402::isModeSupported(const enums402::OperationMode &op_mode)
 
 void Node_402::processSW(LayerStatus &status)
 {
-  boost::mutex::scoped_lock lock(word_mutex_, boost::try_to_lock);
+  boost::mutex::scoped_lock lock(status_word_mutex_, boost::try_to_lock);
   if(!lock) return;
 
   SwCwSM->process_event(StatusandControl::newStatusWord());
@@ -163,7 +164,7 @@ uint32_t Node_402::getModeMask(const enums402::OperationMode &op_mode)
 
 void Node_402::processCW()
 {
-  boost::mutex::scoped_lock lock(word_mutex_, boost::try_to_lock);
+  boost::mutex::scoped_lock lock(control_word_mutex_, boost::try_to_lock);
   if(!lock) return;
 
   SwCwSM->process_event(StatusandControl::newControlWord());
@@ -294,7 +295,7 @@ bool Node_402::turnOn(LayerStatus &s)
       return false;
     }
 
-    if(!motorEvent(highLevelSM::runMotorSM(enums402::FaultReset, canopen::get_abs_time(boost::chrono::seconds(1)))))
+    if(!motorEvent(highLevelSM::runMotorSM(enums402::FaultReset, canopen::get_abs_time(boost::chrono::seconds(2)))))
     {
       s.error("Could not reset fault");
       return false;
@@ -316,11 +317,23 @@ bool Node_402::turnOn(LayerStatus &s)
     return false;
   }
 
+  clock_t start, stop;
+
+
+
+  start = clock();
   if(!motorEvent(highLevelSM::runMotorSM(enums402::SwitchOn, canopen::get_abs_time(boost::chrono::seconds(2)))))
   {
     s.error("Could not switch on");
+    stop = clock();
+    std::cout << "SWITCHON" << std::endl;
+    std::cout << "TOOKSW: " << (double) (stop-start)/CLOCKS_PER_SEC << std::endl;
     return false;
   }
+
+  stop = clock();
+  std::cout << "SWITCHON" << std::endl;
+  std::cout << "TOOKSW: " << (double) (stop-start)/CLOCKS_PER_SEC << std::endl;
 
 
   if(!motorEvent(highLevelSM::runMotorSM(enums402::EnableOp, canopen::get_abs_time(boost::chrono::seconds(2)))))
@@ -347,6 +360,7 @@ bool Node_402::motorEvent(Event const& evt)
 
 bool Node_402::turnOff(LayerStatus &s)
 {
+  std::cout << "TURN OFF IS NOW ACTIVE" << std::endl;
   motorEvent(highLevelSM::runMotorSM(enums402::ShutdownMotor, canopen::get_abs_time(boost::chrono::seconds(1))));
 
   motorEvent(highLevelSM::stopMachine());

@@ -115,9 +115,6 @@ public:
   }
   StatusandControl_(boost::shared_ptr<ObjectStorage> storage) :  storage_(storage) {
 
-    state_change_mutex_ = boost::make_shared<boost::mutex>();
-    cond_state_change_ = boost::make_shared<boost::condition_variable>();
-
     word_bitset_ = boost::make_shared<wordBitset>();
 
     motor_commands_ = boost::make_shared<commandTargets>();
@@ -205,6 +202,7 @@ public:
 
   void read_status(newStatusWord const&)
   {
+    std::cout << "rs" << std::endl;
     std::bitset<16> sw_new(status_word_entry_.get());
 
     word_bitset_->status_word = sw_new;
@@ -242,10 +240,12 @@ public:
       LOG("Motor currently in an unknown state");
     }
 
-    if (motor_feedback_->state == motor_commands_->target_internal_state)
-    {
-      cond_state_change_->notify_all();
-    }
+//    if(change_needed_)
+//      if (motor_feedback_->state == motor_commands_->target_internal_state)
+//      {
+//        cond_state_change_->notify_all();
+//        change_needed_ = false;
+//      }
 
     motor_feedback_->current_mode = (enums402::OperationMode) op_mode_display.get();
     motor_feedback_->actual_vel = actual_vel.get();
@@ -277,15 +277,6 @@ public:
   template <class FSM,class Event>
   void exception_caught (Event const&,FSM& fsm,std::exception& ){}
 
-  boost::shared_ptr<boost::mutex> getMutex()
-  {
-    return state_change_mutex_;
-  }
-
-  boost::shared_ptr<boost::condition_variable> getCondition()
-  {
-    return cond_state_change_;
-  }
 
   boost::shared_ptr<motorFeedback> getFeedback()
   {
@@ -301,6 +292,7 @@ public:
   {
     return word_bitset_;
   }
+
 
 private:
   boost::shared_ptr<wordBitset> word_bitset_;
@@ -318,8 +310,6 @@ private:
   canopen::ObjectStorage::Entry<int32_t> actual_internal_pos;
 
   canopen::ObjectStorage::Entry<int8_t>  op_mode_display;
-  boost::shared_ptr<boost::mutex>state_change_mutex_;
-  boost::shared_ptr<boost::condition_variable> cond_state_change_;
 };
 // back-end
 typedef msm::back::state_machine<StatusandControl_> StatusandControl;

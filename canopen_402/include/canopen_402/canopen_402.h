@@ -108,7 +108,8 @@ private:
   volatile bool running;
 
   boost::mutex motor_mutex_;
-  boost::mutex word_mutex_;
+  boost::mutex status_word_mutex_;
+  boost::mutex control_word_mutex_;
   boost::mutex cond_mutex_;
   boost::mutex mode_mutex_;
 

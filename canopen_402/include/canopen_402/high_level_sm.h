@@ -70,6 +70,7 @@
 #include <canopen_402/mode_switch.h>
 #include <boost/thread/thread.hpp>
 #include <canopen_master/canopen.h>
+#include <ctime>
 
 namespace msm = boost::msm;
 namespace mpl = boost::mpl;
@@ -90,6 +91,10 @@ public:
     ///
     ///
     ///
+    ///
+    ///
+    state_change_mutex_ = boost::make_shared<boost::mutex>();
+    cond_state_change_ = boost::make_shared<boost::condition_variable>();
     storage_->entry(op_mode, 0x6060);
     storage_->entry(supported_drive_modes, 0x6502);
 
@@ -355,33 +360,32 @@ public:
 
   bool check_state_change(enums402::InternalState target_state, canopen::time_point t0)
   {
-    boost::mutex::scoped_lock cond_lock(*(statusandControlMachine_->getMutex()));
+    boost::mutex::scoped_lock cond_lock(*state_change_mutex_);
     if(!cond_lock)
       return false;
 
+    clock_t start, stop;
 
+    std::cout << statusandControlMachine_->getFeedback()->state << ":"  << target_state << std::endl;
 
-    //          if(evt.inverse_logic)
-    //          {
-    //            while(statusandControlMachine_->getFeedback()->state==evt.target_state)
-    //            {
-    //              std::cout << "<...>" << std::endl;
-    //              if(cond_state_change_->wait_until(cond_lock,evt.timeout)  == boost::cv_status::timeout)
-    //              {
-    //                BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
-    //              }
-    //            }
-    //          }
+    start = clock();
+    std::cout << "BEGIN";
 
-    //          else
-    //          {
     while(statusandControlMachine_->getFeedback()->state != target_state)
     {
-      if(statusandControlMachine_->getCondition()->wait_until(cond_lock,t0)  == boost::cv_status::timeout)
-      {
-        return false;
-      }
+      std::cout << "is looping" << std::endl;
+//      std::cout << statusandControlMachine_->getFeedback()->state << "," << target_state << ";";
+//      if(cond_state_change_->wait_until(cond_lock,t0)  == boost::cv_status::timeout)
+//      {
+//        stop = clock();
+//        std::cout << "TOOK " << (double) ((stop-start)/CLOCKS_PER_SEC) << std::endl;
+//        std::cout << "END_COND" << std::endl;
+//        return false;
+//      }
     }
+    stop = clock();
+    std::cout << "END" << std::endl;
+    std::cout << "TOOK " << (double) ((stop-start)/CLOCKS_PER_SEC) << std::endl;
 
     return true;
   }
@@ -428,8 +432,6 @@ public:
     switch(statusandControlMachine_->getFeedback()->current_mode)
     {
     case enums402::Interpolated_Position:
-      //      std::cout << "move IP:" << ipModeMachine_->current_state()[0] <<  std::endl;
-      //      std::cout << "mode machine State:" << modeSwitchMachine.current_state()[0] <<  std::endl;
       ipModeMachine_->process_event(IPModeSM::selectMode());
       ipModeMachine_->process_event(IPModeSM::enable());
       ipModeMachine_->process_event(IPModeSM::setTarget(evt.pos, evt.vel));
@@ -571,6 +573,9 @@ public:
   }
 
 private:
+  boost::shared_ptr<boost::mutex> state_change_mutex_;
+  boost::shared_ptr<boost::condition_variable> cond_state_change_;
+
   boost::shared_ptr<double> target_pos_;
   boost::shared_ptr<double> target_vel_;
   double old_pos_;
