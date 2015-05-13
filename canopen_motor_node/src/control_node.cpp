@@ -36,11 +36,11 @@ public:
    const double getActualPos() { return Node_402::getActualPos() / pos_unit_factor; }
    const double getActualVel() { return Node_402::getActualVel() / vel_unit_factor; }
    const double getActualEff() { return Node_402::getActualEff() / eff_unit_factor; }
-   
+
    void setTargetPos(const double &v) { Node_402::setTargetPos(v*pos_unit_factor); }
    void setTargetVel(const double &v) { Node_402::setTargetVel(v*vel_unit_factor); }
    void setTargetEff(const double &v) { Node_402::setTargetEff(v*eff_unit_factor); }
-   
+
    const double getTargetPos() { return Node_402::getTargetPos() / pos_unit_factor; }
    const double getTargetVel() { return Node_402::getTargetVel() / vel_unit_factor; }
    const double getTargetEff() { return Node_402::getTargetEff() / eff_unit_factor; }
@@ -51,15 +51,15 @@ class HandleLayer: public Layer{
     double pos_, vel_, eff_;
     double cmd_pos_, cmd_vel_, cmd_eff_;
 
-    
+
     hardware_interface::JointStateHandle jsh_;
     hardware_interface::JointHandle jph_, jvh_, jeh_;
     boost::atomic<hardware_interface::JointHandle*> jh_;
 
-    typedef boost::unordered_map< OperationMode,hardware_interface::JointHandle* > CommandMap;
+    typedef boost::unordered_map< enums402::OperationMode,hardware_interface::JointHandle* > CommandMap;
     CommandMap commands_;
 
-    template <typename T> hardware_interface::JointHandle* addHandle( T &iface, hardware_interface::JointHandle *jh,  const std::vector<OperationMode> & modes){
+    template <typename T> hardware_interface::JointHandle* addHandle( T &iface, hardware_interface::JointHandle *jh,  const std::vector<enums402::OperationMode> & modes){
 
         uint32_t mode_mask = 0;
         for(size_t i=0; i < modes.size(); ++i){
@@ -75,7 +75,7 @@ class HandleLayer: public Layer{
         }
         return jh;
     }
-    bool select(const OperationMode &m){
+    bool select(const enums402::OperationMode &m){
         CommandMap::iterator it = commands_.find(m);
         if(it == commands_.end()) return false;
         jh_ = it->second;
@@ -84,16 +84,16 @@ class HandleLayer: public Layer{
 public:
     HandleLayer(const std::string &name, const boost::shared_ptr<MotorNode> & motor)
     : Layer(name + " Handle"), motor_(motor), jsh_(name, &pos_, &vel_, &eff_), jph_(jsh_, &cmd_pos_), jvh_(jsh_, &cmd_vel_), jeh_(jsh_, &cmd_eff_), jh_(0) {
-        commands_[No_Mode] = 0;
+        commands_[enums402::No_Mode] = 0;
     }
 
-    int canSwitch(const OperationMode &m){
+    int canSwitch(const enums402::OperationMode &m){
        if(!motor_->isModeSupported(m)) return 0;
        if(motor_->getMode() == m) return -1;
        if(commands_.find(m) != commands_.end()) return 1;
        return 0;
     }
-    bool switchMode(const OperationMode &m){
+    bool switchMode(const enums402::OperationMode &m){
         jh_ = 0; // disconnect handle
         if(!motor_->enterModeAndWait(m)){
             ROS_ERROR_STREAM(jsh_.getName() << "could not enter mode " << (int)m);
@@ -105,25 +105,25 @@ public:
         iface.registerHandle(jsh_);
     }
     hardware_interface::JointHandle* registerHandle(hardware_interface::PositionJointInterface &iface){
-        std::vector<OperationMode> modes;
-        modes.push_back(Profiled_Position);
-        modes.push_back(Interpolated_Position);
-        modes.push_back(Cyclic_Synchronous_Position);
+        std::vector<enums402::OperationMode> modes;
+        modes.push_back(enums402::Profiled_Position);
+        modes.push_back(enums402::Interpolated_Position);
+        modes.push_back(enums402::Cyclic_Synchronous_Position);
         return addHandle(iface, &jph_, modes);
     }
     hardware_interface::JointHandle* registerHandle(hardware_interface::VelocityJointInterface &iface){
-        std::vector<OperationMode> modes;
-        modes.push_back(Velocity);
-        modes.push_back(Profiled_Velocity);
-        modes.push_back(Cyclic_Synchronous_Velocity);
+        std::vector<enums402::OperationMode> modes;
+        modes.push_back(enums402::Velocity);
+        modes.push_back(enums402::Profiled_Velocity);
+        modes.push_back(enums402::Cyclic_Synchronous_Velocity);
         return addHandle(iface, &jvh_, modes);
     }
     hardware_interface::JointHandle* registerHandle(hardware_interface::EffortJointInterface &iface){
-        std::vector<OperationMode> modes;
-        modes.push_back(Profiled_Torque);
-        modes.push_back(Cyclic_Synchronous_Torque);
+        std::vector<enums402::OperationMode> modes;
+        modes.push_back(enums402::Profiled_Torque);
+        modes.push_back(enums402::Cyclic_Synchronous_Torque);
         return addHandle(iface, &jeh_, modes);
-    }    
+    }
 private:
     virtual void handleRead(LayerStatus &status, const LayerState &current_state) {
         if(current_state > Init){
@@ -150,12 +150,12 @@ private:
         // TODO: implement proper init
         handleRead(status, Layer::Ready);
     }
-    
+
     virtual void handleDiag(LayerReport &report) { /* nothing to do */ }
     virtual void handleShutdown(LayerStatus &status) { /* nothing to do */ }
     virtual void handleHalt(LayerStatus &status) { /* TODO */ }
     virtual void handleRecover(LayerStatus &status) { handleRead(status, Layer::Ready); }
-    
+
 };
 
 
@@ -177,7 +177,7 @@ class RobotLayer : public LayerGroupNoDiag<HandleLayer>, public hardware_interfa
 
     typedef boost::unordered_map< std::string, boost::shared_ptr<HandleLayer> > HandleMap;
     HandleMap handles_;
-    typedef std::vector<std::pair<boost::shared_ptr<HandleLayer>, OperationMode> >  SwitchContainer;
+    typedef std::vector<std::pair<boost::shared_ptr<HandleLayer>, enums402::OperationMode> >  SwitchContainer;
     typedef boost::unordered_map<std::string, SwitchContainer>  SwitchMap;
     mutable SwitchMap switch_map_;
 
@@ -216,7 +216,7 @@ public:
             joint_limits_interface::SoftJointLimits soft_limits;
 
             boost::shared_ptr<const urdf::Joint> joint = getJoint(it->first);
-            
+
             if(!joint){
                 status.error("joint " + it->first + " not found");
                 return;
@@ -309,8 +309,8 @@ public:
                         ROS_ERROR_STREAM(*res_it << " not found");
                         return false;
                     }
-                    if(int res = h_it->second->canSwitch((OperationMode)mode)){
-                        if(res > 0) to_switch.push_back(std::make_pair(h_it->second, OperationMode(mode)));
+                    if(int res = h_it->second->canSwitch((enums402::OperationMode)mode)){
+                        if(res > 0) to_switch.push_back(std::make_pair(h_it->second, enums402::OperationMode(mode)));
                     }else{
                         ROS_ERROR_STREAM("Mode " << mode << " is not available for " << *res_it);
                         return false;
@@ -338,7 +338,7 @@ public:
             }
         }
         for(boost::unordered_set<boost::shared_ptr<HandleLayer> >::iterator it = to_stop.begin(); it != to_stop.end(); ++it){
-            (*it)->switchMode(No_Mode);
+            (*it)->switchMode(enums402::No_Mode);
         }
     }
 
