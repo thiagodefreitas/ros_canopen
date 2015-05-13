@@ -84,7 +84,7 @@ class highLevelSM_ : public msm::front::state_machine_def<highLevelSM_>
 public:
   highLevelSM_(){}
   highLevelSM_(boost::shared_ptr<StatusandControl::wordBitset> &words,  boost::shared_ptr<StatusandControl::commandTargets> target,boost::shared_ptr<StatusandControl::motorFeedback> feedback, boost::shared_ptr<ObjectStorage> &storage)
-    : words_(words), targets_(target), motor_feedback_(feedback), previous_mode_(No_Mode), storage_(storage)
+    : words_(words), targets_(target), motor_feedback_(feedback), previous_mode_(No_Mode), storage_(storage), old_pos_(0)
   {
     ///////////////////*
     ///
@@ -430,8 +430,14 @@ public:
 
     case Profiled_Position:
       ppModeMachine_->process_event(ppModeSM::selectMode());
-      ppModeMachine_->process_event(ppModeSM::enable());
-      ppModeMachine_->process_event(ppModeSM::setTarget(evt.pos));
+      if(evt.pos != old_pos_)
+      {
+        ppModeMachine_->process_event(ppModeSM::setTarget(evt.pos));
+        ppModeMachine_->process_event(ppModeSM::enable());
+      }
+      else
+        ppModeMachine_->process_event(ppModeSM::disable());
+      old_pos_ = evt.pos;
       break;
 
     case Profiled_Velocity:
@@ -551,6 +557,7 @@ private:
 
   boost::shared_ptr<double> target_pos_;
   boost::shared_ptr<double> target_vel_;
+  double old_pos_;
 
   boost::shared_ptr<StatusandControl::commandTargets> targets_;
   boost::shared_ptr<StatusandControl::motorFeedback> motor_feedback_;
