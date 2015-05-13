@@ -131,7 +131,7 @@ void Node_402::handleWrite(LayerStatus &status, const LayerState &current_state)
   {
     return;
   }
-  if(motor_feedback_->state == enums402::Fault)
+  if(SwCwSM->getFeedback()->state == enums402::Fault)
   {
     bool transition_success;
     transition_success =  motorEvent(highLevelSM::runMotorSM(enums402::FaultEnable, canopen::get_abs_time(boost::chrono::seconds(1))));
@@ -171,9 +171,9 @@ void Node_402::processCW()
 
 void Node_402::move(LayerStatus &status)
 {
-  if((motor_feedback_->state == enums402::Operation_Enable) && (valid_mode_state_ == true))
+  if((SwCwSM->getFeedback()->state == enums402::Operation_Enable) && (valid_mode_state_ == true))
   {
-    bool transition_success = motorEvent(highLevelSM::enableMove(target_values_->target_pos, target_values_->target_vel));
+    bool transition_success = motorEvent(highLevelSM::enableMove(SwCwSM->updateCommands()->target_pos, SwCwSM->updateCommands()->target_vel));
   }
 }
 
@@ -223,52 +223,52 @@ void Node_402::handleRecover(LayerStatus &status)
 
 const double Node_402::getTargetPos()
 {
-  return target_values_->target_pos;
+  return SwCwSM->updateCommands()->target_pos;
 }
 const double Node_402::getTargetVel()
 {
-  return target_values_->target_vel;
+  return SwCwSM->updateCommands()->target_vel;
 }
 
 const enums402::OperationMode Node_402::getMode()
 {
-  if(motor_feedback_->current_mode == enums402::Homing) return enums402::No_Mode; // TODO: remove after mode switch is handled properly in init
-  return motor_feedback_->current_mode;
+  if(SwCwSM->getFeedback()->current_mode == enums402::Homing) return enums402::No_Mode; // TODO: remove after mode switch is handled properly in init
+  return SwCwSM->getFeedback()->current_mode;
 }
 
 const double Node_402::getActualVel()
 {
-  return motor_feedback_->actual_vel;
+  return SwCwSM->getFeedback()->actual_vel;
 }
 
 const double Node_402::getActualEff()
 {
-  return motor_feedback_->actual_eff;
+  return SwCwSM->getFeedback()->actual_eff;
 }
 
 const double Node_402::getActualPos()
 {
-  return motor_feedback_->actual_pos;
+  return SwCwSM->getFeedback()->actual_pos;
 }
 
 void Node_402::setTargetVel(const double &target_vel)
 {
-  if (motor_feedback_->state == enums402::Operation_Enable && valid_mode_state_)
+  if (SwCwSM->getFeedback()->state == enums402::Operation_Enable && valid_mode_state_)
   {
-    target_values_->target_vel = target_vel;
+    SwCwSM->updateCommands()->target_vel = target_vel;
   }
   else
-    target_values_->target_vel = 0;
+    SwCwSM->updateCommands()->target_vel = 0;
 }
 
 void Node_402::setTargetPos(const double &target_pos)
 {
-  if (motor_feedback_->state == enums402::Operation_Enable && valid_mode_state_)
+  if (SwCwSM->getFeedback()->state == enums402::Operation_Enable && valid_mode_state_)
   {
-    target_values_->target_pos = target_pos;
+    SwCwSM->updateCommands()->target_pos = target_pos;
   }
   else
-    target_values_->target_pos = motor_feedback_->actual_pos;
+    SwCwSM->updateCommands()->target_pos = SwCwSM->getFeedback()->actual_pos;
 }
 
 bool Node_402::turnOn(LayerStatus &s)
@@ -279,15 +279,17 @@ bool Node_402::turnOn(LayerStatus &s)
 
   motorEvent(highLevelSM::startMachine());
 
-  while(motor_feedback_->state == enums402::Start)
+  while(SwCwSM->getFeedback()->state == enums402::Start)
   {
     boost::this_thread::sleep_for(boost::chrono::milliseconds(10));
   }
 
-  if(motor_feedback_->state == enums402::Fault)
+  if(SwCwSM->getFeedback()->state == enums402::Fault)
   {
+    std::cout << "fault" << std::endl;
     if(!motorEvent(highLevelSM::runMotorSM(enums402::FaultEnable, canopen::get_abs_time(boost::chrono::seconds(2)))))
     {
+
       s.error("Could not properly set the device to a fault state");
       return false;
     }
@@ -299,7 +301,7 @@ bool Node_402::turnOn(LayerStatus &s)
     }
   }
 
-  if(motor_feedback_->state == enums402::Quick_Stop_Active)
+  if(SwCwSM->getFeedback()->state == enums402::Quick_Stop_Active)
   {
     if(!motorEvent(highLevelSM::runMotorSM(enums402::DisableQuickStop, canopen::get_abs_time(boost::chrono::seconds(2)))))
     {

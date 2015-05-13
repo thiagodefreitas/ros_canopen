@@ -75,7 +75,7 @@ class IPModeSM_ : public msm::front::state_machine_def<IPModeSM_>
 {
 public:
   IPModeSM_(){}
-  IPModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, const boost::shared_ptr<ObjectStorage> &storage) : words_(words), storage_(storage)
+  IPModeSM_(const boost::shared_ptr<StatusandControl> &statusandControlMachine, const boost::shared_ptr<ObjectStorage> &storage) : statusandControlMachine_(statusandControlMachine), storage_(storage)
   {
     storage_->entry(ip_mode_sub_mode, 0x60C0);
     storage_->entry(target_interpolated_position, 0x60C1, 0x01);
@@ -150,11 +150,11 @@ public:
   // transition actions
   void enable_mode(enable const&)
   {
-    words_->control_word.reset(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Halt);
 
-    words_->control_word.set(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   template <class setTarget> void set_target(setTarget const& evt)
@@ -165,24 +165,24 @@ public:
   }
   void disable_mode(disable const&)
   {
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
   {
-    words_->control_word.reset(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Halt);
 
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void deselect_mode(deselectMode const&)
   {
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -215,7 +215,7 @@ public:
     //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
-  boost::shared_ptr<StatusandControl::wordBitset> words_;
+  boost::shared_ptr<StatusandControl> statusandControlMachine_;
   boost::shared_ptr<ObjectStorage> storage_;
 
   canopen::ObjectStorage::Entry<int16_t>  ip_mode_sub_mode;

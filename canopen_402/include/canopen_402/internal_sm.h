@@ -66,7 +66,7 @@ class MotorSM_ : public msm::front::state_machine_def<MotorSM_>
 {
 public:
   MotorSM_(){}
-  MotorSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, const boost::shared_ptr<StatusandControl::motorFeedback> &motor_feedback) : words_(words), motor_feedback_(motor_feedback)
+  MotorSM_(boost::shared_ptr<StatusandControl> &statusandControlMachine) : statusandControlMachine_(statusandControlMachine)
   {
   }
 
@@ -152,81 +152,81 @@ public:
   // transition actions
   void shutdown_motor(shutdown const&)
   {
-    words_->control_word.reset(enums402::CW_Switch_On);
-    words_->control_word.set(enums402::CW_Enable_Voltage);
-    words_->control_word.set(enums402::CW_Quick_Stop);
-    words_->control_word.reset(enums402::CW_Fault_Reset);
-    words_->control_word.reset(enums402::CW_Enable_Operation);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Switch_On);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Enable_Voltage);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Quick_Stop);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Fault_Reset);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Enable_Operation);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void turn_on(switch_on const&)
   {
-    words_->control_word.set(enums402::CW_Switch_On);
-    words_->control_word.set(enums402::CW_Enable_Voltage);
-    words_->control_word.set(enums402::CW_Quick_Stop);
-    words_->control_word.reset(enums402::CW_Fault_Reset);
-    words_->control_word.reset(enums402::CW_Enable_Operation);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Switch_On);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Enable_Voltage);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Quick_Stop);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Fault_Reset);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Enable_Operation);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void turn_off(disable_voltage const&)
   {
-    words_->control_word.reset(enums402::CW_Switch_On);
-    words_->control_word.reset(enums402::CW_Enable_Voltage);
-    words_->control_word.set(enums402::CW_Quick_Stop);
-    words_->control_word.reset(enums402::CW_Fault_Reset);
-    words_->control_word.reset(enums402::CW_Enable_Operation);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Switch_On);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Enable_Voltage);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Quick_Stop);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Fault_Reset);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Enable_Operation);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void activate_QS(quick_stop const&)
   {
-    words_->control_word.reset(enums402::CW_Switch_On);
-    words_->control_word.set(enums402::CW_Enable_Voltage);
-    words_->control_word.reset(enums402::CW_Quick_Stop);
-    words_->control_word.reset(enums402::CW_Fault_Reset);
-    words_->control_word.reset(enums402::CW_Enable_Operation);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Switch_On);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Enable_Voltage);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Quick_Stop);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Fault_Reset);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Enable_Operation);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void operate(enable_op const&)
   {
-    words_->control_word.set(enums402::CW_Switch_On);
-    words_->control_word.set(enums402::CW_Enable_Voltage);
-    words_->control_word.set(enums402::CW_Quick_Stop);
-    words_->control_word.reset(enums402::CW_Fault_Reset);
-    words_->control_word.set(enums402::CW_Enable_Operation);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Switch_On);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Enable_Voltage);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Quick_Stop);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Fault_Reset);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Enable_Operation);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   void stop_operation(disable_op const&)
   {
-    words_->control_word.set(enums402::CW_Switch_On);
-    words_->control_word.set(enums402::CW_Enable_Voltage);
-    words_->control_word.set(enums402::CW_Quick_Stop);
-    words_->control_word.reset(enums402::CW_Fault_Reset);
-    words_->control_word.reset(enums402::CW_Enable_Operation);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Switch_On);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Enable_Voltage);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Quick_Stop);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Fault_Reset);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Enable_Operation);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   void reset_fault(fault_reset const&)
   {
-    words_->control_word.set(enums402::CW_Fault_Reset);
-    words_->control_word.reset(enums402::CW_Switch_On);
-    words_->control_word.reset(enums402::CW_Enable_Voltage);
-    words_->control_word.reset(enums402::CW_Quick_Stop);
-    words_->control_word.reset(enums402::CW_Enable_Operation);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Fault_Reset);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Switch_On);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Enable_Voltage);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Quick_Stop);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Enable_Operation);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   // guard conditions
@@ -283,8 +283,7 @@ public:
     //fsm.process_event(disable_voltage());
   }
 private:
-  boost::shared_ptr<StatusandControl::wordBitset> words_;
-  boost::shared_ptr<StatusandControl::motorFeedback> motor_feedback_;
+  boost::shared_ptr<StatusandControl> statusandControlMachine_;
 };
 
 

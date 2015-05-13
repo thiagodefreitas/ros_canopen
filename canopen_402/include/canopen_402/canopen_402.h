@@ -68,13 +68,8 @@ class Node_402 : public canopen::Layer
 public:
   Node_402(boost::shared_ptr <canopen::Node> n, const std::string &name) : Layer(name), n_(n), storage_(n_->getStorage()), valid_mode_state_(true)
   {
-    words_ = boost::make_shared<StatusandControl::wordBitset>();
-
-    target_values_ = boost::make_shared<StatusandControl::commandTargets>();
-    motor_feedback_ = boost::make_shared<StatusandControl::motorFeedback>();
-
-    SwCwSM = boost::make_shared<StatusandControl>(words_, motor_feedback_, storage_);
-    motorAbstraction = highLevelSM(words_, target_values_, motor_feedback_, storage_, SwCwSM);
+    SwCwSM = boost::make_shared<StatusandControl>(storage_);
+    motorAbstraction = highLevelSM(storage_, SwCwSM);
     SwCwSM->start();
     motorAbstraction.start();
     SwCwSM->process_event(StatusandControl::readStatus());
@@ -127,13 +122,8 @@ private:
 
   enums402::OperationMode default_operation_mode_;
 
-  boost::shared_ptr<StatusandControl::wordBitset> words_;
-
   boost::shared_ptr<StatusandControl> SwCwSM;
   highLevelSM motorAbstraction;
-
-  boost::shared_ptr<StatusandControl::commandTargets> target_values_;
-  boost::shared_ptr<StatusandControl::motorFeedback> motor_feedback_;
 
   template <class Event>
   bool motorEvent(Event const&);

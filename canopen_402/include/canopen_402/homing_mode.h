@@ -76,7 +76,7 @@ class HomingSM_ : public msm::front::state_machine_def<HomingSM_>
 {
 public:
   HomingSM_(){}
-  HomingSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words)
+  HomingSM_(const boost::shared_ptr<StatusandControl> &statusandControl) : statusandControlMachine_(statusandControl)
   {
     homing_mask_.set(enums402::SW_Target_reached);
     homing_mask_.set(enums402::SW_Operation_specific0);
@@ -142,15 +142,15 @@ public:
   // transition actions
   void enable_mode(enable const&)
   {
-    words_->control_word.set(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
     //    std::cout << "homingMode::enable_homing";
   }
   void disable_mode(disable const&)
   {
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
@@ -160,9 +160,9 @@ public:
 
   void update_homing(runHomingCheck const&)
   {
-    words_->control_word.set(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific0);
 
-    switch ((words_->status_word & homing_mask_).to_ulong())
+    switch ((statusandControlMachine_->getWords()->status_word & homing_mask_).to_ulong())
     {
     //-------------------------------------------------------------//
     // Op_specific1 | Op_specific0 | Target_reached | Description |
@@ -207,9 +207,9 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -246,7 +246,7 @@ public:
 
   }
 private:
-  boost::shared_ptr<StatusandControl::wordBitset> words_;
+  boost::shared_ptr<StatusandControl> statusandControlMachine_;
   boost::shared_ptr<enums402::HomingState> homing_state_;
 
   std::bitset<16> homing_mask_;

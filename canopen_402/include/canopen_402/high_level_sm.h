@@ -83,8 +83,8 @@ class highLevelSM_ : public msm::front::state_machine_def<highLevelSM_>
 {
 public:
   highLevelSM_(){}
-  highLevelSM_(boost::shared_ptr<StatusandControl::wordBitset> &words,  boost::shared_ptr<StatusandControl::commandTargets> target,boost::shared_ptr<StatusandControl::motorFeedback> feedback, boost::shared_ptr<ObjectStorage> &storage, boost::shared_ptr<StatusandControl> &statusandControlMachine)
-    : words_(words), targets_(target), motor_feedback_(feedback), previous_mode_(enums402::No_Mode), storage_(storage), statusandControlMachine_(statusandControlMachine), old_pos_(0)
+  highLevelSM_(boost::shared_ptr<ObjectStorage> &storage, boost::shared_ptr<StatusandControl> &statusandControlMachine)
+    : previous_mode_(enums402::No_Mode), storage_(storage), statusandControlMachine_(statusandControlMachine), old_pos_(0)
   {
     ///////////////////*
     ///
@@ -97,37 +97,37 @@ public:
 
     supported_modes_ = supported_drive_modes.get_cached();
 
-    motorStateMachine = motorSM(words_, motor_feedback_);
+    motorStateMachine = motorSM(statusandControlMachine_);
     motorStateMachine.start();
     motorStateMachine.process_event(motorSM::boot());
 
     if(isSupported(enums402::Homing))
     {
-      homingModeMachine_ = boost::make_shared<HomingSM>(HomingSM(words_));
+      homingModeMachine_ = boost::make_shared<HomingSM>(HomingSM(statusandControlMachine_));
       homingModeMachine_->start();
     }
 
     if(isSupported(enums402::Velocity))
     {
-      velModeMachine_ = boost::make_shared<velModeSM>(velModeSM(words_, storage_));
+      velModeMachine_ = boost::make_shared<velModeSM>(velModeSM(statusandControlMachine_, storage_));
       velModeMachine_->start();
     }
 
     if(isSupported(enums402::Interpolated_Position))
     {
-      ipModeMachine_ = boost::make_shared<IPModeSM>(IPModeSM(words_, storage_));
+      ipModeMachine_ = boost::make_shared<IPModeSM>(IPModeSM(statusandControlMachine_, storage_));
       ipModeMachine_->start();
     }
 
     if(isSupported(enums402::Profiled_Position))
     {
-      ppModeMachine_ = boost::make_shared<ppModeSM>(ppModeSM(words_, storage_));
+      ppModeMachine_ = boost::make_shared<ppModeSM>(ppModeSM(statusandControlMachine_, storage_));
       ppModeMachine_->start();
     }
 
     if(isSupported(enums402::Profiled_Velocity))
     {
-      pvModeMachine_ = boost::make_shared<pvModeSM>(pvModeSM(words_, storage_));
+      pvModeMachine_ = boost::make_shared<pvModeSM>(pvModeSM(statusandControlMachine_, storage_));
       pvModeMachine_->start();
     }
 
@@ -230,8 +230,8 @@ public:
   // transition actions
   void standby(enterStandBy const&)
   {
-    targets_->target_pos = motor_feedback_->actual_pos;
-    targets_->target_vel = 0;
+    statusandControlMachine_->updateCommands()->target_pos = statusandControlMachine_->getFeedback()->actual_pos;
+    statusandControlMachine_->updateCommands()->target_vel = 0;
   }
 
 
@@ -244,35 +244,35 @@ public:
     case enums402::QuickStop:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       motorStateMachine.process_event(motorSM::quick_stop());
-      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Quick_Stop_Active, evt.timeout));
+      transition_success = check_state_change(enums402::Quick_Stop_Active, evt.timeout);
       if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case enums402::FaultReset:
       motorStateMachine.process_event(motorSM::fault_reset());
-      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Fault, evt.timeout));
-      if(transition_success)
+      transition_success = check_state_change(enums402::Fault, evt.timeout);
+      if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case enums402::ShutdownMotor:
       motorStateMachine.process_event(motorSM::shutdown());
-      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Ready_To_Switch_On, evt.timeout));
+      transition_success = check_state_change(enums402::Ready_To_Switch_On, evt.timeout);
       if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case enums402::SwitchOn:
       motorStateMachine.process_event(motorSM::switch_on());
-      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Switched_On, evt.timeout));
+      transition_success = check_state_change(enums402::Switched_On, evt.timeout);
       if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case enums402::EnableOp:
       motorStateMachine.process_event(motorSM::enable_op());
-      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Operation_Enable, evt.timeout));
+      transition_success = check_state_change(enums402::Operation_Enable, evt.timeout);
       if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
@@ -280,14 +280,14 @@ public:
     case enums402::FaultEnable:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       motorStateMachine.process_event(motorSM::fault());
-      transition_success = statusandControlMachine_->process_event(StatusandControl::checkStateChange(enums402::Fault, evt.timeout));
+      transition_success = check_state_change(enums402::Fault, evt.timeout);
       if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case enums402::DisableQuickStop:
       motorStateMachine.process_event(motorSM::disable_voltage());
-      if(motor_feedback_->state != enums402::Not_Ready_To_Switch_On && motor_feedback_->state != enums402::Switch_On_Disabled)
+      if(statusandControlMachine_->getFeedback()->state != enums402::Not_Ready_To_Switch_On && statusandControlMachine_->getFeedback()->state != enums402::Switch_On_Disabled)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
@@ -298,9 +298,9 @@ public:
 
   template <class checkModeSwitch> void mode_switch(checkModeSwitch const& evt)
   {
-    if(motor_feedback_->current_mode != evt.op_mode && evt.op_mode != enums402::No_Mode)
+    if(statusandControlMachine_->getFeedback()->current_mode != evt.op_mode && evt.op_mode != enums402::No_Mode)
     {
-      previous_mode_ = motor_feedback_->current_mode;
+      previous_mode_ = statusandControlMachine_->getFeedback()->current_mode;
       op_mode.set_cached(evt.op_mode);
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
@@ -353,6 +353,39 @@ public:
     }
   }
 
+  bool check_state_change(enums402::InternalState target_state, canopen::time_point t0)
+  {
+    boost::mutex::scoped_lock cond_lock(*(statusandControlMachine_->getMutex()));
+    if(!cond_lock)
+      return false;
+
+
+
+    //          if(evt.inverse_logic)
+    //          {
+    //            while(statusandControlMachine_->getFeedback()->state==evt.target_state)
+    //            {
+    //              std::cout << "<...>" << std::endl;
+    //              if(cond_state_change_->wait_until(cond_lock,evt.timeout)  == boost::cv_status::timeout)
+    //              {
+    //                BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
+    //              }
+    //            }
+    //          }
+
+    //          else
+    //          {
+    while(statusandControlMachine_->getFeedback()->state != target_state)
+    {
+      if(statusandControlMachine_->getCondition()->wait_until(cond_lock,t0)  == boost::cv_status::timeout)
+      {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   bool isSupported(const enums402::OperationMode &op_mode)
   {
     uint32_t masked_mode;
@@ -392,7 +425,7 @@ public:
 
   template <class enableMove> void move(enableMove const& evt)
   {
-    switch(motor_feedback_->current_mode)
+    switch(statusandControlMachine_->getFeedback()->current_mode)
     {
     case enums402::Interpolated_Position:
       //      std::cout << "move IP:" << ipModeMachine_->current_state()[0] <<  std::endl;
@@ -538,14 +571,10 @@ public:
   }
 
 private:
-  boost::shared_ptr<StatusandControl::wordBitset> words_;
-
   boost::shared_ptr<double> target_pos_;
   boost::shared_ptr<double> target_vel_;
   double old_pos_;
 
-  boost::shared_ptr<StatusandControl::commandTargets> targets_;
-  boost::shared_ptr<StatusandControl::motorFeedback> motor_feedback_;
   enums402::OperationMode previous_mode_;
 
   boost::shared_ptr<IPModeSM> ipModeMachine_;

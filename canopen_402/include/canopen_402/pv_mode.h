@@ -76,7 +76,7 @@ class pvModeSM_ : public msm::front::state_machine_def<pvModeSM_>
 {
 public:
   pvModeSM_(){}
-  pvModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, const boost::shared_ptr<ObjectStorage> &storage) : words_(words), storage_(storage)
+  pvModeSM_(const boost::shared_ptr<StatusandControl> &statusandControlMachine, const boost::shared_ptr<ObjectStorage> &storage) : statusandControlMachine_(statusandControlMachine), storage_(storage)
   {
     storage_->entry(target_profiled_velocity, 0x60FF);
   }
@@ -145,40 +145,40 @@ public:
   // transition actions
   void enable_pv(enable const&)
   {
-    words_->control_word.reset(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Halt);
 
 
-    words_->control_word.set(enums402::CW_Operation_mode_specific0);
-    words_->control_word.set(enums402::CW_Operation_mode_specific1);
-    words_->control_word.set(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific2);
 //    std::cout << "pvMode::enable_pvINtern\n";
   }
   void disable_pv(disable const&)
   {
-    words_->control_word.set(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Halt);
 
 
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
 //    std::cout << "pvMode::disable_pvIntern\n";
   }
 
   void select_mode(selectMode const&)
   {
-    words_->control_word.set(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Halt);
 
 //    std::cout << "PVMode::selectModeINtern\n";
   }
   void deselect_mode(deselectMode const&)
   {
-    words_->control_word.set(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Halt);
 
     target_profiled_velocity.set(0.0);
 
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
 //    std::cout << "pvMode::deselect_pvINtern\n";
   }
 
@@ -216,7 +216,7 @@ public:
     //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
-  boost::shared_ptr<StatusandControl::wordBitset> words_;
+  boost::shared_ptr<StatusandControl> statusandControlMachine_;
   boost::shared_ptr<ObjectStorage> storage_;
 
   canopen::ObjectStorage::Entry<int32_t> target_profiled_velocity;

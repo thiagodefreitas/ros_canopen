@@ -100,14 +100,29 @@ public:
     wordBitset() : status_word(), control_word() {}
   };
 
+  struct commandTargets
+  {
+    double target_pos;
+    double target_vel;
+    enums402::InternalState target_internal_state;
+    commandTargets() : target_pos(0), target_vel(0), target_internal_state(enums402::InternalState(0)) {}
+    commandTargets(double pos) : target_pos(pos), target_vel(0), target_internal_state(enums402::InternalState(0)) {}
+    commandTargets(double pos, double vel) : target_pos(pos), target_vel(vel), target_internal_state(enums402::InternalState(0)) {}
+  };
+
 
   StatusandControl_(){
   }
-  StatusandControl_(const boost::shared_ptr<wordBitset> word_bitset, const boost::shared_ptr<motorFeedback> &motor_feedback,
-                    boost::shared_ptr<ObjectStorage> storage) : word_bitset_(word_bitset), motor_feedback_(motor_feedback), storage_(storage)
-  {
+  StatusandControl_(boost::shared_ptr<ObjectStorage> storage) :  storage_(storage) {
+
     state_change_mutex_ = boost::make_shared<boost::mutex>();
     cond_state_change_ = boost::make_shared<boost::condition_variable>();
+
+    word_bitset_ = boost::make_shared<wordBitset>();
+
+    motor_commands_ = boost::make_shared<commandTargets>();
+    motor_feedback_ = boost::make_shared<motorFeedback>();
+
     storage_->entry(status_word_entry_, 0x6041);
     storage_->entry(control_word_entry_, 0x6040);
     storage_->entry(op_mode_display, 0x6061);
@@ -124,25 +139,9 @@ public:
     status_word_mask_.set(enums402::Switch_On_Disabled);
   }
 
-  struct commandTargets
-  {
-    double target_pos;
-    double target_vel;
-    commandTargets() : target_pos(0), target_vel(0) {}
-    commandTargets(double pos) : target_pos(pos), target_vel(0) {}
-    commandTargets(double pos, double vel) : target_pos(pos), target_vel(vel) {}
-  };
 
   struct newStatusWord {};
   struct newControlWord {};
-  struct checkStateChange
-  {
-    enums402::InternalState target_state;
-    canopen::time_point timeout;
-
-    checkStateChange(enums402::InternalState targetState, canopen::time_point timeOut) : target_state(targetState), timeout(timeOut) {}
-  };
-
 
   template <class Event,class FSM>
   void on_entry(Event const&,FSM& ) {/*std::cout << "entering: StatusandControl" << std::endl;*/}
@@ -193,7 +192,7 @@ public:
   };
 
   // the initial state. Must be defined
-  typedef mpl::vector<writeControl,stateCheck> initial_state;
+  typedef writeControl initial_state;
   // transition actions
   void write_control(newControlWord const&)
   {
@@ -202,21 +201,7 @@ public:
     control_word_entry_.set(cw_set);
   }
 
-  template <class checkStateChange> void check_state_change(checkStateChange const& evt)
-  {
-    boost::mutex::scoped_lock cond_lock(*state_change_mutex_);
-    if(!cond_lock)
-      BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
 
-    while(motor_feedback_->state!=evt.target_state)
-    {
-      std::cout << "scd" << std::endl;
-      if(cond_state_change_->wait_until(cond_lock,evt.timeout)  == boost::cv_status::timeout)
-      {
-        BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
-      }
-    }
-  }
 
   void read_status(newStatusWord const&)
   {
@@ -257,6 +242,11 @@ public:
       LOG("Motor currently in an unknown state");
     }
 
+    if (motor_feedback_->state == motor_commands_->target_internal_state)
+    {
+      cond_state_change_->notify_all();
+    }
+
     motor_feedback_->current_mode = (enums402::OperationMode) op_mode_display.get();
     motor_feedback_->actual_vel = actual_vel.get();
     motor_feedback_->actual_pos = actual_pos.get();
@@ -274,11 +264,7 @@ public:
       a_row < writeControl   , newStatusWord    , readStatus   , &sc::read_status                       >,
       a_row < writeControl   , newControlWord    , writeControl   , &sc::write_control                       >,
       a_row < readStatus   , newControlWord, writeControl   , &sc::write_control                       >,
-      a_row < readStatus   , newStatusWord, readStatus   , &sc::read_status                       >,
-      //    +---------+-------------+---------+---------------------+----------------------+
-      //    +---------+-------------+---------+---------------------+----------------------+
-      a_row < stateCheck   , checkStateChange    , stateCheck   , &sc::check_state_change                       >
-      //    +---------+-------------+---------+---------------------+----------------------+
+      a_row < readStatus   , newStatusWord, readStatus   , &sc::read_status                       >
       > {};
   // Replaces the default no-transition response.
   template <class FSM,class Event>
@@ -291,10 +277,36 @@ public:
   template <class FSM,class Event>
   void exception_caught (Event const&,FSM& fsm,std::exception& ){}
 
+  boost::shared_ptr<boost::mutex> getMutex()
+  {
+    return state_change_mutex_;
+  }
+
+  boost::shared_ptr<boost::condition_variable> getCondition()
+  {
+    return cond_state_change_;
+  }
+
+  boost::shared_ptr<motorFeedback> getFeedback()
+  {
+    return motor_feedback_;
+  }
+
+  boost::shared_ptr<commandTargets> updateCommands()
+  {
+    return motor_commands_;
+  }
+
+  boost::shared_ptr<wordBitset> getWords()
+  {
+    return word_bitset_;
+  }
+
 private:
   boost::shared_ptr<wordBitset> word_bitset_;
   std::bitset<16> status_word_mask_;
   boost::shared_ptr<motorFeedback> motor_feedback_;
+  boost::shared_ptr<commandTargets> motor_commands_;
 
   canopen::ObjectStorage::Entry<canopen::ObjectStorage::DataType<0x006>::type >  status_word_entry_;
   canopen::ObjectStorage::Entry<canopen::ObjectStorage::DataType<0x006>::type >  control_word_entry_;
@@ -306,7 +318,6 @@ private:
   canopen::ObjectStorage::Entry<int32_t> actual_internal_pos;
 
   canopen::ObjectStorage::Entry<int8_t>  op_mode_display;
-
   boost::shared_ptr<boost::mutex>state_change_mutex_;
   boost::shared_ptr<boost::condition_variable> cond_state_change_;
 };

@@ -76,7 +76,7 @@ class velModeSM_ : public msm::front::state_machine_def<velModeSM_>
 {
 public:
   velModeSM_(){}
-  velModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, const boost::shared_ptr<ObjectStorage> &storage) : words_(words), storage_(storage)
+  velModeSM_(const boost::shared_ptr<StatusandControl> &statusandControlMachine, const boost::shared_ptr<ObjectStorage> &storage) : statusandControlMachine_(statusandControlMachine), storage_(storage)
   {
     storage_->entry(target_velocity, 0x6042);
   }
@@ -145,35 +145,35 @@ public:
   // transition actions
   void enable_mode(enable const&)
   {
-    words_->control_word.reset(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Halt);
 
-    words_->control_word.set(enums402::CW_Operation_mode_specific0);
-    words_->control_word.set(enums402::CW_Operation_mode_specific1);
-    words_->control_word.set(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific2);
   }
   void disable_mode(disable const&)
   {
-    words_->control_word.set(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Halt);
 
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
   {
-    words_->control_word.set(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Halt);
 
     //    std::cout << "PPMode::selectMode\n";
   }
   void deselect_mode(deselectMode const&)
   {
-    words_->control_word.set(enums402::CW_Halt);
+    statusandControlMachine_->getWords()->control_word.set(enums402::CW_Halt);
     target_velocity.set(0.0);
 
-    words_->control_word.reset(enums402::CW_Operation_mode_specific0);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific1);
-    words_->control_word.reset(enums402::CW_Operation_mode_specific2);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
+    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
   }
 
   template <class setTarget> void set_target(setTarget const& evt)
@@ -210,7 +210,7 @@ public:
     //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
-  boost::shared_ptr<StatusandControl::wordBitset> words_;
+  boost::shared_ptr<StatusandControl> statusandControlMachine_;
   boost::shared_ptr<ObjectStorage> storage_;
 
   canopen::ObjectStorage::Entry<int16_t> target_velocity;
