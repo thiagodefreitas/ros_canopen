@@ -17,49 +17,154 @@
 
 #include <controller_manager/controller_manager.h>
 
+#include "muParser.h"
+
 using namespace can;
 using namespace canopen;
 
-
-//typedef Node_402 MotorNode;
-
-class MotorNode : public Node_402{
-    double pos_unit_factor;
-    double vel_unit_factor;
-    double eff_unit_factor;
+class UnitConverter{
 public:
-   MotorNode(boost::shared_ptr <canopen::Node> n, const std::string &name, XmlRpc::XmlRpcValue & options) : Node_402(n, name), pos_unit_factor(360*1000/(2*M_PI)),vel_unit_factor(360*1000/(2*M_PI)), eff_unit_factor(1) {
-       if(options.hasMember("pos_unit_factor")) pos_unit_factor = options["pos_unit_factor"];
-       if(options.hasMember("vel_unit_factor")) vel_unit_factor = options["vel_unit_factor"];
-       if(options.hasMember("eff_unit_factor")) eff_unit_factor = options["eff_unit_factor"];
-   }
-   const double getActualPos() { return Node_402::getActualPos() / pos_unit_factor; }
-   const double getActualVel() { return Node_402::getActualVel() / vel_unit_factor; }
-   const double getActualEff() { return Node_402::getActualEff() / eff_unit_factor; }
+    typedef boost::function<double * (const std::string &) > get_var_func_type;
 
-   void setTargetPos(const double &v) { Node_402::setTargetPos(v*pos_unit_factor); }
-   void setTargetVel(const double &v) { Node_402::setTargetVel(v*vel_unit_factor); }
-   void setTargetEff(const double &v) { Node_402::setTargetEff(v*eff_unit_factor); }
+    UnitConverter(const std::string &expression, get_var_func_type var_func = get_var_func_type())
+    : var_func_(var_func)
+    {
+        parser_.SetVarFactory(UnitConverter::createVariable, this);
 
-   const double getTargetPos() { return Node_402::getTargetPos() / pos_unit_factor; }
-   const double getTargetVel() { return Node_402::getTargetVel() / vel_unit_factor; }
-   const double getTargetEff() { return Node_402::getTargetEff() / eff_unit_factor; }
+        parser_.DefineConst("pi", M_PI);
+        parser_.DefineConst("nan", std::numeric_limits<double>::quiet_NaN());
+
+        parser_.DefineFun("rad2deg", UnitConverter::rad2deg);
+        parser_.DefineFun("deg2rad", UnitConverter::deg2rad);
+        parser_.DefineFun("norm", UnitConverter::norm);
+        parser_.DefineFun("smooth", UnitConverter::smooth);
+        parser_.DefineFun("avg", UnitConverter::avg);
+
+        parser_.SetExpr(expression);
+    }
+    void reset(){
+        for(variable_ptr_list::iterator it = var_list_.begin(); it != var_list_.end(); ++it){
+            **it = std::numeric_limits<double>::quiet_NaN();
+        }
+    }
+    double evaluate() { int num; return parser_.Eval(num)[0]; }
+private:
+    typedef boost::shared_ptr<double> variable_ptr;
+    typedef std::list<variable_ptr> variable_ptr_list;
+
+    static double* createVariable(const char *name, void * userdata){
+        UnitConverter * uc = static_cast<UnitConverter*>(userdata);
+        double *p = uc->var_func_ ? uc->var_func_(name) : 0;
+        if(!p){
+            p = new double(std::numeric_limits<double>::quiet_NaN());
+            uc->var_list_.push_back(variable_ptr(p));
+        }
+        return p;
+    }
+    variable_ptr_list var_list_;
+    get_var_func_type var_func_;
+
+    mu::Parser parser_;
+
+    static double rad2deg(double r){
+        return r*180.0/M_PI;
+    }
+    static double deg2rad(double d){
+        return d*M_PI/180.0;
+    }
+    static double norm(double val, double min, double max){
+        while(val >= max) val -= (max-min);
+        while(val < min) val += (max-min);
+        return val;
+    }
+    static double smooth(double val, double old_val, double alpha){
+        if(isnan(val)) return 0;
+        if(isnan(old_val)) return val;
+        return alpha*val + (1.0-alpha)*old_val;
+    }
+    static double avg(const double *vals, int num)
+    {
+        double s = 0.0;
+        int i=0;
+        for (; i<num; ++i){
+            const double &val = vals[i];
+            if(isnan(val)) break;
+            s += val;
+        }
+        return s / double(i+1);
+    }
 };
+
+class ObjectVariables {
+    const boost::shared_ptr<ObjectStorage> storage_;
+    struct Getter {
+        boost::shared_ptr<double> val_ptr;
+        boost::function<bool(double&)> func;
+        bool operator ()() { return func(*val_ptr); }
+        template<typename T> Getter(const ObjectStorage::Entry<T> &entry): func(boost::bind(&Getter::readObject<T>, entry, _1)), val_ptr(new double) { }
+        template<typename T> static bool readObject(ObjectStorage::Entry<T> &entry, double &res){
+            T val;
+            if(!entry.get(val)) return false;
+            res = val;
+            return true;
+        }
+        operator double*() const { return val_ptr.get(); }
+    };
+    boost::unordered_map<ObjectDict::Key, Getter> getters_;
+public:
+    template<const uint16_t dt> static double* func(ObjectVariables &list, const ObjectDict::Key &key){
+        typedef typename ObjectStorage::DataType<dt>::type type;
+        return list.getters_.insert(std::make_pair(key, Getter(list.storage_->entry<type>(key)))).first->second;
+    }
+    ObjectVariables(const boost::shared_ptr<ObjectStorage> storage) : storage_(storage) {}
+    bool sync(){
+        bool ok = true;
+        for(boost::unordered_map<ObjectDict::Key, Getter>::iterator it = getters_.begin(); it != getters_.end(); ++it){
+            ok = it->second() && ok;
+        }
+        return ok;
+    }
+    double * getVariable(const std::string &n) {
+        try{
+            if(n.find("obj") == 0){
+                ObjectDict::Key key(n.substr(3));
+                boost::unordered_map<ObjectDict::Key, Getter>::const_iterator it = getters_.find(key);
+                if(it != getters_.end()) return it->second;
+                return branch_type<ObjectVariables, double * (ObjectVariables &list, const ObjectDict::Key &k)>(storage_->dict_->get(key)->data_type)(*this, key);
+            }
+        }
+        catch( const std::exception &e){
+            ROS_ERROR_STREAM("Could not find variable '" << n << "', reason: " << boost::diagnostic_information(e));
+        }
+        return 0;
+    }
+};
+
+template<> double* ObjectVariables::func<ObjectDict::DEFTYPE_VISIBLE_STRING >(ObjectVariables &, const ObjectDict::Key &){ return 0; }
+template<> double* ObjectVariables::func<ObjectDict::DEFTYPE_OCTET_STRING >(ObjectVariables &, const ObjectDict::Key &){ return 0; }
+template<> double* ObjectVariables::func<ObjectDict::DEFTYPE_UNICODE_STRING >(ObjectVariables &, const ObjectDict::Key &){ return 0; }
+template<> double* ObjectVariables::func<ObjectDict::DEFTYPE_DOMAIN >(ObjectVariables &, const ObjectDict::Key &){ return 0; }
+
+typedef Node_402 MotorNode;
 
 class HandleLayer: public Layer{
     boost::shared_ptr<MotorNode> motor_;
     double pos_, vel_, eff_;
+
     double cmd_pos_, cmd_vel_, cmd_eff_;
 
+    ObjectVariables variables_;
+    boost::scoped_ptr<UnitConverter>  conv_target_pos_, conv_target_vel_, conv_target_eff_;
+    boost::scoped_ptr<UnitConverter>  conv_pos_, conv_vel_, conv_eff_;
 
     hardware_interface::JointStateHandle jsh_;
     hardware_interface::JointHandle jph_, jvh_, jeh_;
     boost::atomic<hardware_interface::JointHandle*> jh_;
 
-    typedef boost::unordered_map< enums402::OperationMode,hardware_interface::JointHandle* > CommandMap;
+    typedef boost::unordered_map< OperationMode,hardware_interface::JointHandle* > CommandMap;
     CommandMap commands_;
 
-    template <typename T> hardware_interface::JointHandle* addHandle( T &iface, hardware_interface::JointHandle *jh,  const std::vector<enums402::OperationMode> & modes){
+    template <typename T> hardware_interface::JointHandle* addHandle( T &iface, hardware_interface::JointHandle *jh,  const std::vector<OperationMode> & modes){
 
         uint32_t mode_mask = 0;
         for(size_t i=0; i < modes.size(); ++i){
@@ -75,25 +180,46 @@ class HandleLayer: public Layer{
         }
         return jh;
     }
-    bool select(const enums402::OperationMode &m){
+    bool select(const OperationMode &m){
         CommandMap::iterator it = commands_.find(m);
         if(it == commands_.end()) return false;
         jh_ = it->second;
         return true;
     }
+    static double * assignVariable(const std::string &name, double * ptr, const std::string &req) { return name == req ? ptr : 0; }
 public:
-    HandleLayer(const std::string &name, const boost::shared_ptr<MotorNode> & motor)
-    : Layer(name + " Handle"), motor_(motor), jsh_(name, &pos_, &vel_, &eff_), jph_(jsh_, &cmd_pos_), jvh_(jsh_, &cmd_vel_), jeh_(jsh_, &cmd_eff_), jh_(0) {
-        commands_[enums402::No_Mode] = 0;
+    HandleLayer(const std::string &name, const boost::shared_ptr<MotorNode> & motor, const boost::shared_ptr<ObjectStorage> storage,  XmlRpc::XmlRpcValue & options)
+    : Layer(name + " Handle"), motor_(motor), variables_(storage), jsh_(name, &pos_, &vel_, &eff_), jph_(jsh_, &cmd_pos_), jvh_(jsh_, &cmd_vel_), jeh_(jsh_, &cmd_eff_), jh_(0) {
+       commands_[No_Mode] = 0;
+
+       std::string p2d("rint(rad2deg(pos)*1000"), v2d("rint(rad2deg(vel)*1000"), e2d("rint(eff)");
+       std::string p2r("deg2rad(obj6064)/1000"), v2r("deg2rad(obj606C)/1000"), e2r("0");
+
+       if(options.hasMember("pos_to_device")) p2d = (const std::string&) options["pos_to_device"];
+       if(options.hasMember("pos_from_device")) p2r = (const std::string&) options["pos_from_device"];
+
+       if(options.hasMember("vel_to_device")) v2d = (const std::string&) options["vel_to_device"];
+       if(options.hasMember("vel_from_device")) v2r = (const std::string&) options["vel_from_device"];
+
+       if(options.hasMember("eff_to_device")) e2d = (const std::string&) options["eff_to_device"];
+       if(options.hasMember("eff_from_device")) e2r = (const std::string&) options["eff_from_device"];
+
+       conv_target_pos_.reset(new UnitConverter(p2d, boost::bind(assignVariable, "pos", &cmd_pos_, _1)));
+       conv_target_vel_.reset(new UnitConverter(v2d, boost::bind(assignVariable, "vel", &cmd_vel_, _1)));
+       conv_target_eff_.reset(new UnitConverter(e2d, boost::bind(assignVariable, "eff", &cmd_eff_, _1)));
+
+       conv_pos_.reset(new UnitConverter(p2r, boost::bind(&ObjectVariables::getVariable, &variables_, _1)));
+       conv_vel_.reset(new UnitConverter(v2r, boost::bind(&ObjectVariables::getVariable, &variables_, _1)));
+       conv_eff_.reset(new UnitConverter(e2r, boost::bind(&ObjectVariables::getVariable, &variables_, _1)));
     }
 
-    int canSwitch(const enums402::OperationMode &m){
+    int canSwitch(const OperationMode &m){
        if(!motor_->isModeSupported(m)) return 0;
        if(motor_->getMode() == m) return -1;
        if(commands_.find(m) != commands_.end()) return 1;
        return 0;
     }
-    bool switchMode(const enums402::OperationMode &m){
+    bool switchMode(const OperationMode &m){
         jh_ = 0; // disconnect handle
         if(!motor_->enterModeAndWait(m)){
             ROS_ERROR_STREAM(jsh_.getName() << "could not enter mode " << (int)m);
@@ -105,42 +231,43 @@ public:
         iface.registerHandle(jsh_);
     }
     hardware_interface::JointHandle* registerHandle(hardware_interface::PositionJointInterface &iface){
-        std::vector<enums402::OperationMode> modes;
-        modes.push_back(enums402::Profiled_Position);
-        modes.push_back(enums402::Interpolated_Position);
-        modes.push_back(enums402::Cyclic_Synchronous_Position);
+        std::vector<OperationMode> modes;
+        modes.push_back(Profiled_Position);
+        modes.push_back(Interpolated_Position);
+        modes.push_back(Cyclic_Synchronous_Position);
         return addHandle(iface, &jph_, modes);
     }
     hardware_interface::JointHandle* registerHandle(hardware_interface::VelocityJointInterface &iface){
-        std::vector<enums402::OperationMode> modes;
-        modes.push_back(enums402::Velocity);
-        modes.push_back(enums402::Profiled_Velocity);
-        modes.push_back(enums402::Cyclic_Synchronous_Velocity);
+        std::vector<OperationMode> modes;
+        modes.push_back(Velocity);
+        modes.push_back(Profiled_Velocity);
+        modes.push_back(Cyclic_Synchronous_Velocity);
         return addHandle(iface, &jvh_, modes);
     }
     hardware_interface::JointHandle* registerHandle(hardware_interface::EffortJointInterface &iface){
-        std::vector<enums402::OperationMode> modes;
-        modes.push_back(enums402::Profiled_Torque);
-        modes.push_back(enums402::Cyclic_Synchronous_Torque);
+        std::vector<OperationMode> modes;
+        modes.push_back(Profiled_Torque);
+        modes.push_back(Cyclic_Synchronous_Torque);
         return addHandle(iface, &jeh_, modes);
-    }
+    }    
 private:
     virtual void handleRead(LayerStatus &status, const LayerState &current_state) {
-        if(current_state > Init){
-            pos_ = motor_->getActualPos();
-            vel_ = motor_->getActualVel();
-            eff_ = motor_->getActualEff();
+        if(current_state > Shutdown){
+            variables_.sync();
+            pos_ = conv_pos_->evaluate();
+            vel_ = conv_vel_->evaluate();
+            eff_ = conv_eff_->evaluate();
         }
     }
     virtual void handleWrite(LayerStatus &status, const LayerState &current_state) {
         if(current_state == Ready){
             hardware_interface::JointHandle* jh = jh_;
             if(jh_ == &jph_){
-                motor_->setTargetPos(cmd_pos_);
+                motor_->setTargetPos(conv_target_pos_->evaluate());
             }else if(jh_ == &jvh_){
-                motor_->setTargetVel(cmd_vel_);
+                motor_->setTargetVel(conv_target_vel_->evaluate());
             }else if(jh_ == &jeh_){
-                motor_->setTargetEff(cmd_eff_);
+                motor_->setTargetEff(conv_target_eff_->evaluate());
             }else if(jh_){
                 status.warn("unsupported mode active");
             }
@@ -148,14 +275,20 @@ private:
     }
     virtual void handleInit(LayerStatus &status){
         // TODO: implement proper init
+        conv_pos_->reset();
+        conv_vel_->reset();
+        conv_eff_->reset();
+        conv_target_pos_->reset();
+        conv_target_vel_->reset();
+        conv_target_eff_->reset();
         handleRead(status, Layer::Ready);
     }
-
+    
     virtual void handleDiag(LayerReport &report) { /* nothing to do */ }
     virtual void handleShutdown(LayerStatus &status) { /* nothing to do */ }
     virtual void handleHalt(LayerStatus &status) { /* TODO */ }
     virtual void handleRecover(LayerStatus &status) { handleRead(status, Layer::Ready); }
-
+    
 };
 
 
@@ -177,7 +310,7 @@ class RobotLayer : public LayerGroupNoDiag<HandleLayer>, public hardware_interfa
 
     typedef boost::unordered_map< std::string, boost::shared_ptr<HandleLayer> > HandleMap;
     HandleMap handles_;
-    typedef std::vector<std::pair<boost::shared_ptr<HandleLayer>, enums402::OperationMode> >  SwitchContainer;
+    typedef std::vector<std::pair<boost::shared_ptr<HandleLayer>, OperationMode> >  SwitchContainer;
     typedef boost::unordered_map<std::string, SwitchContainer>  SwitchMap;
     mutable SwitchMap switch_map_;
 
@@ -216,7 +349,7 @@ public:
             joint_limits_interface::SoftJointLimits soft_limits;
 
             boost::shared_ptr<const urdf::Joint> joint = getJoint(it->first);
-
+            
             if(!joint){
                 status.error("joint " + it->first + " not found");
                 return;
@@ -309,8 +442,8 @@ public:
                         ROS_ERROR_STREAM(*res_it << " not found");
                         return false;
                     }
-                    if(int res = h_it->second->canSwitch((enums402::OperationMode)mode)){
-                        if(res > 0) to_switch.push_back(std::make_pair(h_it->second, enums402::OperationMode(mode)));
+                    if(int res = h_it->second->canSwitch((OperationMode)mode)){
+                        if(res > 0) to_switch.push_back(std::make_pair(h_it->second, OperationMode(mode)));
                     }else{
                         ROS_ERROR_STREAM("Mode " << mode << " is not available for " << *res_it);
                         return false;
@@ -338,7 +471,7 @@ public:
             }
         }
         for(boost::unordered_set<boost::shared_ptr<HandleLayer> >::iterator it = to_stop.begin(); it != to_stop.end(); ++it){
-            (*it)->switchMode(enums402::No_Mode);
+            (*it)->switchMode(No_Mode);
         }
     }
 
@@ -416,11 +549,11 @@ template<typename MotorNodeType> class MotorChain : public RosChain{
             return false;
         }
 
-        boost::shared_ptr<MotorNode> motor( new MotorNode(node, name + "_motor", params));
+        boost::shared_ptr<MotorNode> motor( new MotorNode(node, name + "_motor"));
         motors_->add(motor);
         logger->add(motor);
 
-        boost::shared_ptr<HandleLayer> handle( new HandleLayer(joint, motor));
+        boost::shared_ptr<HandleLayer> handle( new HandleLayer(joint, motor, node->getStorage(), params));
         robot_layer_->add(joint, handle);
         logger->add(handle);
 

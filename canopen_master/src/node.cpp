@@ -57,7 +57,6 @@ bool Node::reset(){
     getStorage()->reset();
     
     interface_->send(NMTcommand::Frame(node_id_, NMTcommand::Reset));
-    interface_->send(NMTcommand::Frame(node_id_, NMTcommand::Reset_Com));
     if(wait_for(BootUp, boost::chrono::seconds(10)) != 1){
         return false;
     }
@@ -211,8 +210,8 @@ void Node::handleRecover(LayerStatus &status){
     }
 }
 void Node::handleShutdown(LayerStatus &status){
-    if(getHeartbeatInterval()> 0) heartbeat_.set(0);
     stop();
+    if(getHeartbeatInterval()> 0) heartbeat_.set(0);
     nmt_listener_.reset();
     switchState(Unknown);
 }
