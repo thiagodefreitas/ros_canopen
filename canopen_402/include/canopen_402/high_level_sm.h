@@ -70,7 +70,6 @@
 #include <canopen_402/mode_switch.h>
 #include <boost/thread/thread.hpp>
 #include <canopen_master/canopen.h>
-#include <ctime>
 
 namespace msm = boost::msm;
 namespace mpl = boost::mpl;
@@ -94,7 +93,8 @@ public:
     ///
     ///
     state_change_mutex_ = boost::make_shared<boost::mutex>();
-    cond_state_change_ = boost::make_shared<boost::condition_variable>();
+    mode_change_mutex_ = boost::make_shared<boost::mutex>();
+
     storage_->entry(op_mode, 0x6060);
     storage_->entry(supported_drive_modes, 0x6502);
 
@@ -150,11 +150,9 @@ public:
   struct checkModeSwitch
   {
     enums402::OperationMode op_mode;
-    int timeout;
+    canopen::time_point  timeout;
 
-    checkModeSwitch() : op_mode(), timeout(0) {}
-    checkModeSwitch( enums402::OperationMode mode) : op_mode(mode), timeout(0) {}
-    checkModeSwitch( enums402::OperationMode mode, int timeOut) : op_mode(mode), timeout(timeOut) {}
+    checkModeSwitch( enums402::OperationMode mode, canopen::time_point timeOut) : op_mode(mode), timeout(timeOut) {}
   };
   struct enableMove
   {
@@ -239,7 +237,6 @@ public:
     statusandControlMachine_->updateCommands()->target_vel = 0;
   }
 
-
   template <class runMotorSM> void motor_sm(runMotorSM const& evt)
   {
     bool transition_success;
@@ -303,17 +300,22 @@ public:
 
   template <class checkModeSwitch> void mode_switch(checkModeSwitch const& evt)
   {
-    if(statusandControlMachine_->getFeedback()->current_mode != evt.op_mode && evt.op_mode != enums402::No_Mode)
+    bool transition_sucess;
+
+    op_mode.set_cached(evt.op_mode);
+
+    transition_sucess = check_mode_change(evt.op_mode, evt.timeout);
+
+    if(!transition_sucess)
     {
       previous_mode_ = statusandControlMachine_->getFeedback()->current_mode;
-      op_mode.set_cached(evt.op_mode);
+
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
     }
 
     switch(evt.op_mode)
     {
-    bool transition_sucess;
     case enums402::No_Mode:
       modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       break;
@@ -339,17 +341,7 @@ public:
       break;
 
     case enums402::Homing:
-      if (!homing_method.valid() && homing_method.get() == 0)
-      {
-        BOOST_THROW_EXCEPTION(std::invalid_argument("Homing invalid"));
-      }
-      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
-      modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
-      transition_sucess = homingModeMachine_->process_event(HomingSM::runHomingCheck());
-      if(!transition_sucess)
-      {
-        BOOST_THROW_EXCEPTION(std::invalid_argument("Homing still not completed"));
-      }
+      updateHoming();
       break;
 
     default:
@@ -358,34 +350,68 @@ public:
     }
   }
 
+  bool updateHoming()
+  {
+    bool transition_success;
+    canopen::time_point abs_time = canopen::get_abs_time(boost::chrono::seconds(60));
+    canopen::time_point actual_point;
+
+    if (!homing_method.valid() && homing_method.get() == 0)
+    {
+      BOOST_THROW_EXCEPTION(std::invalid_argument("Homing invalid"));
+    }
+    modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+    modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
+    transition_success = homingModeMachine_->process_event(HomingSM::runHomingCheck());
+    while(transition_success == boost::msm::back::HANDLED_FALSE)
+    {
+      actual_point = boost::chrono::high_resolution_clock::now();
+      if(boost::chrono::duration_cast<boost::chrono::milliseconds>(actual_point - abs_time).count() >= 0 )
+      {
+        BOOST_THROW_EXCEPTION(std::invalid_argument("Homing still not completed"));
+      }
+      transition_success = homingModeMachine_->process_event(HomingSM::runHomingCheck());
+    }
+  }
+
+  bool check_mode_change(enums402::OperationMode target_mode, canopen::time_point t0)
+  {
+    boost::mutex::scoped_lock cond_lock(*mode_change_mutex_);
+    if(!cond_lock)
+      return false;
+
+    statusandControlMachine_->updateCommands()->target_mode = target_mode;
+
+    statusandControlMachine_->setModeChangeNeeded();
+
+    while(statusandControlMachine_->getFeedback()->current_mode != target_mode)
+    {
+      if(statusandControlMachine_->getModeChangeCondition()->wait_until(cond_lock,t0)  == boost::cv_status::timeout)
+      {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   bool check_state_change(enums402::InternalState target_state, canopen::time_point t0)
   {
     boost::mutex::scoped_lock cond_lock(*state_change_mutex_);
     if(!cond_lock)
       return false;
 
-    clock_t start, stop;
+    statusandControlMachine_->updateCommands()->target_internal_state = target_state;
 
-    std::cout << statusandControlMachine_->getFeedback()->state << ":"  << target_state << std::endl;
-
-    start = clock();
-    std::cout << "BEGIN";
+    statusandControlMachine_->setStateChangeNeeded();
 
     while(statusandControlMachine_->getFeedback()->state != target_state)
     {
-      std::cout << "is looping" << std::endl;
-//      std::cout << statusandControlMachine_->getFeedback()->state << "," << target_state << ";";
-//      if(cond_state_change_->wait_until(cond_lock,t0)  == boost::cv_status::timeout)
-//      {
-//        stop = clock();
-//        std::cout << "TOOK " << (double) ((stop-start)/CLOCKS_PER_SEC) << std::endl;
-//        std::cout << "END_COND" << std::endl;
-//        return false;
-//      }
+      if(statusandControlMachine_->getStateChangeCondition()->wait_until(cond_lock,t0)  == boost::cv_status::timeout)
+      {
+        return false;
+      }
     }
-    stop = clock();
-    std::cout << "END" << std::endl;
-    std::cout << "TOOK " << (double) ((stop-start)/CLOCKS_PER_SEC) << std::endl;
 
     return true;
   }
@@ -574,7 +600,7 @@ public:
 
 private:
   boost::shared_ptr<boost::mutex> state_change_mutex_;
-  boost::shared_ptr<boost::condition_variable> cond_state_change_;
+  boost::shared_ptr<boost::mutex> mode_change_mutex_;
 
   boost::shared_ptr<double> target_pos_;
   boost::shared_ptr<double> target_vel_;

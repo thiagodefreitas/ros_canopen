@@ -105,20 +105,23 @@ public:
     double target_pos;
     double target_vel;
     enums402::InternalState target_internal_state;
-    commandTargets() : target_pos(0), target_vel(0), target_internal_state(enums402::InternalState(0)) {}
-    commandTargets(double pos) : target_pos(pos), target_vel(0), target_internal_state(enums402::InternalState(0)) {}
-    commandTargets(double pos, double vel) : target_pos(pos), target_vel(vel), target_internal_state(enums402::InternalState(0)) {}
+    enums402::OperationMode target_mode;
+    commandTargets() : target_pos(0), target_vel(0), target_internal_state(enums402::InternalState(0)), target_mode(enums402::OperationMode(0)) {}
+    commandTargets(double pos) : target_pos(pos), target_vel(0), target_internal_state(enums402::InternalState(0)), target_mode(enums402::OperationMode(0)) {}
+    commandTargets(double pos, double vel) : target_pos(pos), target_vel(vel), target_internal_state(enums402::InternalState(0)), target_mode(enums402::OperationMode(0)) {}
   };
 
 
   StatusandControl_(){
   }
-  StatusandControl_(boost::shared_ptr<ObjectStorage> storage) :  storage_(storage) {
+  StatusandControl_(boost::shared_ptr<ObjectStorage> storage) :  storage_(storage), state_change_needed_(false), mode_change_needed_(false) {
 
     word_bitset_ = boost::make_shared<wordBitset>();
 
     motor_commands_ = boost::make_shared<commandTargets>();
     motor_feedback_ = boost::make_shared<motorFeedback>();
+    cond_state_change_ = boost::make_shared<boost::condition_variable>();
+    cond_mode_change_ = boost::make_shared<boost::condition_variable>();
 
     storage_->entry(status_word_entry_, 0x6041);
     storage_->entry(control_word_entry_, 0x6040);
@@ -198,11 +201,8 @@ public:
     control_word_entry_.set(cw_set);
   }
 
-
-
   void read_status(newStatusWord const&)
   {
-    std::cout << "rs" << std::endl;
     std::bitset<16> sw_new(status_word_entry_.get());
 
     word_bitset_->status_word = sw_new;
@@ -240,12 +240,20 @@ public:
       LOG("Motor currently in an unknown state");
     }
 
-//    if(change_needed_)
-//      if (motor_feedback_->state == motor_commands_->target_internal_state)
-//      {
-//        cond_state_change_->notify_all();
-//        change_needed_ = false;
-//      }
+    if(state_change_needed_ || mode_change_needed_)
+    {
+      if (motor_feedback_->state == motor_commands_->target_internal_state)
+      {
+        cond_state_change_->notify_all();
+        state_change_needed_ = false;
+      }
+
+      if (motor_feedback_->current_mode == motor_commands_->target_mode)
+      {
+        cond_mode_change_->notify_all();
+        mode_change_needed_ = false;
+      }
+    }
 
     motor_feedback_->current_mode = (enums402::OperationMode) op_mode_display.get();
     motor_feedback_->actual_vel = actual_vel.get();
@@ -293,12 +301,37 @@ public:
     return word_bitset_;
   }
 
+  void setStateChangeNeeded()
+  {
+    state_change_needed_ = true;
+  }
+
+  void setModeChangeNeeded()
+  {
+    mode_change_needed_ = true;
+  }
+
+  boost::shared_ptr<boost::condition_variable> getStateChangeCondition()
+  {
+    return cond_state_change_;
+  }
+
+  boost::shared_ptr<boost::condition_variable> getModeChangeCondition()
+  {
+    return cond_mode_change_;
+  }
+
 
 private:
   boost::shared_ptr<wordBitset> word_bitset_;
   std::bitset<16> status_word_mask_;
   boost::shared_ptr<motorFeedback> motor_feedback_;
   boost::shared_ptr<commandTargets> motor_commands_;
+  bool state_change_needed_;
+  bool mode_change_needed_;
+
+  boost::shared_ptr<boost::condition_variable> cond_state_change_;
+  boost::shared_ptr<boost::condition_variable> cond_mode_change_;
 
   canopen::ObjectStorage::Entry<canopen::ObjectStorage::DataType<0x006>::type >  status_word_entry_;
   canopen::ObjectStorage::Entry<canopen::ObjectStorage::DataType<0x006>::type >  control_word_entry_;
