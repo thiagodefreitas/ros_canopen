@@ -140,35 +140,28 @@ public:
 
   };
 
-  // the initial state. Must be defined
   typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
   void enable_pv(enable const&)
   {
     statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Halt);
 
-
     statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific0);
     statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific1);
     statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific2);
-//    std::cout << "pvMode::enable_pvINtern\n";
   }
   void disable_pv(disable const&)
   {
     statusandControlMachine_->getWords()->control_word.set(enums402::CW_Halt);
 
-
     statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
     statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
     statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
-//    std::cout << "pvMode::disable_pvIntern\n";
   }
 
   void select_mode(selectMode const&)
   {
     statusandControlMachine_->getWords()->control_word.set(enums402::CW_Halt);
-
-//    std::cout << "PVMode::selectModeINtern\n";
   }
   void deselect_mode(deselectMode const&)
   {
@@ -178,8 +171,6 @@ public:
 
     statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific0);
     statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
-    statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
-//    std::cout << "pvMode::deselect_pvINtern\n";
   }
 
   template <class setTarget> void set_target(setTarget const& evt)

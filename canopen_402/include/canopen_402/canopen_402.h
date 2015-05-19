@@ -72,7 +72,6 @@ public:
     motorAbstraction = highLevelSM(storage_, SwCwSM);
     SwCwSM->start();
     motorAbstraction.start();
-    SwCwSM->process_event(StatusandControl::readStatus());
   }
 
   const  enums402::OperationMode getMode();

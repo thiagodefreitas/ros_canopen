@@ -163,8 +163,6 @@ public:
   void select_mode(selectMode const&)
   {
     statusandControlMachine_->getWords()->control_word.set(enums402::CW_Halt);
-
-    //    std::cout << "PPMode::selectMode\n";
   }
   void deselect_mode(deselectMode const&)
   {
@@ -180,7 +178,6 @@ public:
   {
     target_velocity.set(evt.target_vel);
   }
-  // guard conditions
 
   typedef velModeSM_ vel; // makes transition table cleaner
   // Transition table for PPMode
@@ -206,8 +203,6 @@ public:
   template <class FSM,class Event>
   void no_transition(Event const& e, FSM&,int state)
   {
-    //    std::cout << "no transition from state " << state
-    //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
   boost::shared_ptr<StatusandControl> statusandControlMachine_;

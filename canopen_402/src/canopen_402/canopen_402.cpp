@@ -79,7 +79,7 @@ bool Node_402::enterModeAndWait(const enums402::OperationMode &op_mode_var)
 
     if(transition_success_ == boost::msm::back::HANDLED_FALSE)
     {
-        return false;
+      return false;
     }
     motorEvent(highLevelSM::enterStandBy());
     valid_mode_state_ = true;
@@ -175,6 +175,12 @@ void Node_402::handleShutdown(LayerStatus &status)
 
 void Node_402::handleDiag(LayerReport &report)
 {
+  if(SwCwSM->getFeedback()->state == enums402::Fault)
+  {
+    report.add("error", "The device is on fault state");
+    report.add("statusword", SwCwSM->getWords()->status_word);
+    report.add("controlword", SwCwSM->getWords()->control_word);
+  }
 }
 
 void Node_402::handleHalt(LayerStatus &status)

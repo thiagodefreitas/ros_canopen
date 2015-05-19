@@ -211,8 +211,6 @@ public:
   template <class FSM,class Event>
   void no_transition(Event const& e, FSM&,int state)
   {
-    //    std::cout << "no transition from state " << state
-    //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
   boost::shared_ptr<StatusandControl> statusandControlMachine_;

@@ -154,7 +154,6 @@ public:
     statusandControlMachine_->getWords()->control_word.set(enums402::CW_Operation_mode_specific0);
     statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific1);
     statusandControlMachine_->getWords()->control_word.reset(enums402::CW_Operation_mode_specific2);
-    std::cout << "ppMode::enable_pp\n";
   }
   void disable_mode(disable const&)
   {
@@ -211,8 +210,6 @@ public:
   template <class FSM,class Event>
   void no_transition(Event const& e, FSM&,int state)
   {
-    //    std::cout << "no transition from state " << state
-    //              << " on event " << typeid(e).name() << std::endl;
   }
 private:
   boost::shared_ptr<StatusandControl> statusandControlMachine_;

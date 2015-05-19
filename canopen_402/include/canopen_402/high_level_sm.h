@@ -228,16 +228,13 @@ public:
     {/*std::cout << "finishing: Move" << std::endl;*/}
   };
 
-  // the initial state. Must be defined
-  // typedef StartUp initial_state;
-  // transition actions
-  void standby(enterStandBy const&)
+  void enter_standby(enterStandBy const&)
   {
     statusandControlMachine_->updateCommands()->target_pos = statusandControlMachine_->getFeedback()->actual_pos;
     statusandControlMachine_->updateCommands()->target_vel = 0;
   }
 
-  template <class runMotorSM> void motor_sm(runMotorSM const& evt)
+  template <class runMotorSM> void run_motor_sm(runMotorSM const& evt)
   {
     bool transition_success;
 
@@ -298,7 +295,7 @@ public:
     }
   }
 
-  template <class checkModeSwitch> void mode_switch(checkModeSwitch const& evt)
+  template <class checkModeSwitch> void switch_mode(checkModeSwitch const& evt)
   {
     bool transition_sucess;
 
@@ -560,24 +557,24 @@ public:
 
       Row < machineRunning   , none    , Standby   , none, none                       >,
 
-      a_row < Standby   , runMotorSM    , updateMotorSM   , &hl::motor_sm                       >,
-      a_row < Standby   , checkModeSwitch    , ModeSwitch   , &hl::mode_switch                      >,
+      a_row < Standby   , runMotorSM    , updateMotorSM   , &hl::run_motor_sm                       >,
+      a_row < Standby   , checkModeSwitch    , ModeSwitch   , &hl::switch_mode                      >,
       a_row < Standby   , enableMove, Move   , &hl::move                     >,
       a_row < Standby   , stopMachine, machineStopped   , &hl::stop_machine                      >,
 
-      a_row < ModeSwitch   , runMotorSM, updateMotorSM   , &hl::motor_sm                     >,
-      a_row < ModeSwitch   , enterStandBy, Standby   , &hl::standby                      >,
+      a_row < ModeSwitch   , runMotorSM, updateMotorSM   , &hl::run_motor_sm                     >,
+      a_row < ModeSwitch   , enterStandBy, Standby   , &hl::enter_standby                      >,
       a_row < ModeSwitch   , stopMachine, machineStopped   , &hl::stop_machine                      >,
-      a_row < ModeSwitch   , checkModeSwitch, ModeSwitch   , &hl::mode_switch                      >,
+      a_row < ModeSwitch   , checkModeSwitch, ModeSwitch   , &hl::switch_mode                      >,
       a_row < ModeSwitch   , enableMove, Move   , &hl::move                     >,
 
-      a_row < updateMotorSM   , checkModeSwitch    , ModeSwitch   , &hl::mode_switch                       >,
-      a_row < updateMotorSM   , enterStandBy, Standby   , &hl::standby                      >,
+      a_row < updateMotorSM   , checkModeSwitch    , ModeSwitch   , &hl::switch_mode                       >,
+      a_row < updateMotorSM   , enterStandBy, Standby   , &hl::enter_standby                      >,
       a_row < updateMotorSM   , enableMove, Move   , &hl::move                     >,
       a_row < updateMotorSM   , stopMachine, machineStopped   , &hl::stop_machine                      >,
-      a_row < updateMotorSM   , runMotorSM, updateMotorSM   , &hl::motor_sm                      >,
+      a_row < updateMotorSM   , runMotorSM, updateMotorSM   , &hl::run_motor_sm                      >,
 
-      a_row < Move   , enterStandBy, Standby   , &hl::standby                      >,
+      a_row < Move   , enterStandBy, Standby   , &hl::enter_standby                      >,
       a_row < Move   , stopMachine, machineStopped   , &hl::stop_machine                      >,
       a_row < Move   , enableMove, Move   , &hl::move                      >,
       //    +---------+-------------+---------+---------------------+----------------------+
