@@ -66,10 +66,7 @@ class MotorSM_ : public msm::front::state_machine_def<MotorSM_>
 {
 public:
   MotorSM_(){}
-  MotorSM_(boost::shared_ptr<StatusandControl> &statusandControlMachine) : statusandControlMachine_(statusandControlMachine)
-  {
-  }
-
+  MotorSM_(boost::shared_ptr<StatusandControl> &statusandControlMachine) : statusandControlMachine_(statusandControlMachine){}
   // defined events from transitioning inside the 402 state machine
   struct boot {};
   struct shutdown {};
@@ -107,7 +104,7 @@ public:
     template <class Event,class FSM>
     void on_exit(Event const&,FSM& )
     {
-//      std::cout << "leaving: Ready_To_Switch_On" << std::endl;
+      //      std::cout << "leaving: Ready_To_Switch_On" << std::endl;
     }
   };
 
@@ -270,18 +267,10 @@ public:
       > {};
 
   template <class FSM,class Event>
-  void no_transition(Event const& e, FSM&,int state)
-  {
-  // std::cout << "no transition from state " << state
-   //           << " on event " << typeid(e).name() << std::endl;
-  }
+  void no_transition(Event const& e, FSM&,int state){}
 
   template <class FSM,class Event>
-  void exception_caught (Event const&,FSM& fsm,std::exception& )
-  {
-//    std::cout << "Could not switch_state" << std::endl;
-    //fsm.process_event(disable_voltage());
-  }
+  void exception_caught (Event const&,FSM& fsm,std::exception& ){}
 private:
   boost::shared_ptr<StatusandControl> statusandControlMachine_;
 };

@@ -583,17 +583,10 @@ public:
       > {};
   // Replaces the default no-transition response.
   template <class FSM,class Event>
-  void no_transition(Event const& e, FSM&,int state)
-  {
-    //std::cout << "no transition from state " << state
-    //          << " on event " << typeid(e).name() << std::endl;
-  }
+  void no_transition(Event const& e, FSM&,int state){}
 
   template <class FSM,class Event>
-  void exception_caught (Event const&,FSM& fsm,std::exception& )
-  {
-
-  }
+  void exception_caught (Event const&,FSM& fsm,std::exception& ){}
 
 private:
   boost::shared_ptr<boost::mutex> state_change_mutex_;

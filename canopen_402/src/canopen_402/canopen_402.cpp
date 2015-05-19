@@ -75,7 +75,7 @@ bool Node_402::enterModeAndWait(const enums402::OperationMode &op_mode_var)
 
   if (isModeSupported(op_mode_var) || op_mode_var == enums402::OperationMode(enums402::No_Mode))
   {
-    transition_success_ = motorEvent(highLevelSM::checkModeSwitch(op_mode_var, canopen::get_abs_time(boost::chrono::seconds(1))));
+    transition_success_ = motorEvent(highLevelSM::checkModeSwitch(op_mode_var, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT))));
 
     if(transition_success_ == boost::msm::back::HANDLED_FALSE)
     {
@@ -125,7 +125,7 @@ void Node_402::handleWrite(LayerStatus &status, const LayerState &current_state)
   if(SwCwSM->getFeedback()->state == enums402::Fault)
   {
     bool transition_success;
-    transition_success =  motorEvent(highLevelSM::runMotorSM(enums402::FaultEnable, canopen::get_abs_time(boost::chrono::seconds(1))));
+    transition_success =  motorEvent(highLevelSM::runMotorSM(enums402::FaultEnable, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT))));
     motorEvent(highLevelSM::enterStandBy());
   }
   move(status);
@@ -187,7 +187,7 @@ void Node_402::handleHalt(LayerStatus &status)
 {
   bool transition_success;
 
-  transition_success = motorEvent(highLevelSM::runMotorSM(enums402::QuickStop, canopen::get_abs_time(boost::chrono::seconds(1))));
+  transition_success = motorEvent(highLevelSM::runMotorSM(enums402::QuickStop, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT))));
 }
 
 
@@ -283,14 +283,14 @@ bool Node_402::turnOn(LayerStatus &s)
 
   if(SwCwSM->getFeedback()->state == enums402::Fault)
   {
-    if(!motorEvent(highLevelSM::runMotorSM(enums402::FaultEnable, canopen::get_abs_time(boost::chrono::seconds(2)))))
+    if(!motorEvent(highLevelSM::runMotorSM(enums402::FaultEnable, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT)))))
     {
 
       s.error("Could not properly set the device to a fault state");
       return false;
     }
 
-    if(!motorEvent(highLevelSM::runMotorSM(enums402::FaultReset, canopen::get_abs_time(boost::chrono::seconds(2)))))
+    if(!motorEvent(highLevelSM::runMotorSM(enums402::FaultReset, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT)))))
     {
       s.error("Could not reset fault");
       return false;
@@ -299,26 +299,26 @@ bool Node_402::turnOn(LayerStatus &s)
 
   if(SwCwSM->getFeedback()->state == enums402::Quick_Stop_Active)
   {
-    if(!motorEvent(highLevelSM::runMotorSM(enums402::DisableQuickStop, canopen::get_abs_time(boost::chrono::seconds(2)))))
+    if(!motorEvent(highLevelSM::runMotorSM(enums402::DisableQuickStop, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT)))))
     {
       s.error("Could not properly set the device to a fault state");
       return false;
     }
   }
 
-  if(!motorEvent(highLevelSM::runMotorSM(enums402::ShutdownMotor, canopen::get_abs_time(boost::chrono::seconds(2)))))
+  if(!motorEvent(highLevelSM::runMotorSM(enums402::ShutdownMotor, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT)))))
   {
     s.error("Could not prepare the device");
     return false;
   }
 
-  if(!motorEvent(highLevelSM::runMotorSM(enums402::SwitchOn, canopen::get_abs_time(boost::chrono::seconds(2)))))
+  if(!motorEvent(highLevelSM::runMotorSM(enums402::SwitchOn, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT)))))
   {
     s.error("Could not switch on");
     return false;
   }
 
-  if(!motorEvent(highLevelSM::runMotorSM(enums402::EnableOp, canopen::get_abs_time(boost::chrono::seconds(2)))))
+  if(!motorEvent(highLevelSM::runMotorSM(enums402::EnableOp, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT)))))
   {
     s.error("Could not enable the operation");
     return false;
@@ -342,7 +342,7 @@ bool Node_402::motorEvent(Event const& evt)
 
 bool Node_402::turnOff(LayerStatus &s)
 {
-  motorEvent(highLevelSM::runMotorSM(enums402::ShutdownMotor, canopen::get_abs_time(boost::chrono::seconds(1))));
+  motorEvent(highLevelSM::runMotorSM(enums402::ShutdownMotor, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT))));
 
   motorEvent(highLevelSM::stopMachine());
 
