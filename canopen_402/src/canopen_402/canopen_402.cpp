@@ -318,6 +318,8 @@ bool Node_402::turnOn(LayerStatus &s)
     return false;
   }
 
+  motorEvent(highLevelSM::enterStandBy());
+
   if(!motorEvent(highLevelSM::runMotorSM(enums402::EnableOp, canopen::get_abs_time(boost::chrono::seconds(MOTOR_COMMAND_TIMEOUT)))))
   {
     s.error("Could not enable the operation");

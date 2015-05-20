@@ -253,7 +253,7 @@ public:
 
     case enums402::FaultReset:
       motorStateMachine.process_event(motorSM::fault_reset());
-      transition_success = check_state_change(enums402::Fault, evt.timeout);
+      transition_success = check_state_change(enums402::Fault, evt.timeout, true);
       if(!transition_success)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
@@ -395,7 +395,7 @@ public:
     return true;
   }
 
-  bool check_state_change(enums402::InternalState target_state, canopen::time_point t0)
+  bool check_state_change(enums402::InternalState target_state, canopen::time_point t0, bool fault_reset=false)
   {
     boost::mutex::scoped_lock cond_lock(*state_change_mutex_);
     if(!cond_lock)
@@ -405,8 +405,14 @@ public:
 
     statusandControlMachine_->setStateChangeNeeded();
 
-    while(statusandControlMachine_->getFeedback()->state != target_state)
+    while(statusandControlMachine_->getFeedback()->state != target_state || fault_reset)
     {
+      if(fault_reset)
+        if(statusandControlMachine_->getFeedback()->state != target_state)
+        {
+          break;
+        }
+
       if(statusandControlMachine_->getStateChangeCondition()->wait_until(cond_lock,t0)  == boost::cv_status::timeout)
       {
         return false;
