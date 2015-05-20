@@ -53,8 +53,8 @@
  *
  ****************************************************************/
 
-#ifndef HOMING_H
-#define HOMING_H
+#ifndef HOMING_MODE_H
+#define HOMING_MODE_H
 
 #include <canopen_402/status_and_control.h>
 ///////
@@ -62,7 +62,7 @@
 ///
 ///
 ///
-// the ip mode state machine
+// the homing mode state machine
 namespace msm = boost::msm;
 namespace mpl = boost::mpl;
 
@@ -76,7 +76,7 @@ class HomingSM_ : public msm::front::state_machine_def<HomingSM_>
 {
 public:
   HomingSM_(){}
-  HomingSM_(const boost::shared_ptr<cw_word> &control_word, boost::shared_ptr<sw_word> status_word) : control_word_(control_word), status_word_(status_word)
+  HomingSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words) : words_(words)
   {
     homing_mask_.set(SW_Target_reached);
     homing_mask_.set(SW_Operation_specific0);
@@ -84,32 +84,32 @@ public:
 
     homing_state_ = boost::make_shared<HomingState>(NotStarted);
   }
-  struct enableHoming {};
-  struct disableHoming {};
+  struct enable {};
+  struct disable {};
   struct selectMode {};
   struct deselectMode {};
   struct runHomingCheck {};
 
   template <class Event,class FSM>
-  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: IPMode" << std::endl;*/}
+  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: homingMode" << std::endl;*/}
   template <class Event,class FSM>
-  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: IPMode" << std::endl;*/}
+  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: homingMode" << std::endl;*/}
 
   // The list of FSM states
-  struct HomingInactive : public msm::front::state<>
+  struct Inactive : public msm::front::state<>
   {
     template <class Event,class FSM>
-    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: homingInactive" << std::endl;*/}
     template <class Event,class FSM>
-    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: homingInactive" << std::endl;*/}
 
   };
-  struct HomingActive : public msm::front::state<>
+  struct Active : public msm::front::state<>
   {
     template <class Event,class FSM>
-    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPActive" << std::endl;*/}
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: homingActive" << std::endl;*/}
     template <class Event,class FSM>
-    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPActive" << std::endl;*/}
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: homingActive" << std::endl;*/}
   };
 
   // The list of FSM states
@@ -140,29 +140,30 @@ public:
   // the initial state. Must be defined
   typedef mpl::vector<modeDeselected,updateHoming> initial_state;
   // transition actions
-  void enable_homing(enableHoming const&)
+  void enable_mode(enable const&)
   {
-    control_word_->set(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
-    //    std::cout << "IPMode::enable_ip\n";
+
+    words_->control_word.set(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
+    //    std::cout << "homingMode::enable_homing";
   }
-  void disable_homing(disableHoming const&)
+  void disable_mode(disable const&)
   {
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
 
   void select_mode(selectMode const&)
   {
-    //    std::cout << "IPMode::selectMode\n";
+    //    std::cout << "homingMode::selectMode\n";
   }
 
   void update_homing(runHomingCheck const&)
   {
-    control_word_->set(CW_Operation_mode_specific0);
+    words_->control_word.set(CW_Operation_mode_specific0);
 
-    switch ((*status_word_ & homing_mask_).to_ulong())
+    switch ((words_->status_word & homing_mask_).to_ulong())
     {
     //-------------------------------------------------------------//
     // Op_specific1 | Op_specific0 | Target_reached | Description |
@@ -207,9 +208,9 @@ public:
   }
   void deselect_mode(deselectMode const&)
   {
-    control_word_->reset(CW_Operation_mode_specific0);
-    control_word_->reset(CW_Operation_mode_specific1);
-    control_word_->reset(CW_Operation_mode_specific2);
+    words_->control_word.reset(CW_Operation_mode_specific0);
+    words_->control_word.reset(CW_Operation_mode_specific1);
+    words_->control_word.reset(CW_Operation_mode_specific2);
   }
   // guard conditions
 
@@ -220,14 +221,14 @@ public:
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < modeDeselected   , selectMode    , modeSelected   , &hom::select_mode                       >,
 
-      Row < modeSelected   , none    , HomingInactive   , none, none                       >,
+      Row < modeSelected   , none    , Inactive   , none, none                       >,
       a_row < modeSelected   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
 
-      a_row < HomingActive   , disableHoming, HomingInactive   , &hom::disable_homing                      >,
-      a_row < HomingActive   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
+      a_row < Active   , disable, Inactive   , &hom::disable_mode                      >,
+      a_row < Active   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
 
-      a_row < HomingInactive   , enableHoming    , HomingActive   , &hom::enable_homing                       >,
-      a_row < HomingInactive   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
+      a_row < Inactive   , enable    , Active   , &hom::enable_mode                       >,
+      a_row < Inactive   , deselectMode    , modeDeselected   , &hom::deselect_mode                       >,
       //    +---------+-------------+---------+---------------------+----------------------+
       a_row < updateHoming   , runHomingCheck    , updateHoming   , &hom::update_homing                       >
       //    +---------+-------------+---------+---------------------+----------------------+
@@ -246,8 +247,7 @@ public:
 
   }
 private:
-  boost::shared_ptr<cw_word> control_word_;
-  boost::shared_ptr<sw_word> status_word_;
+  boost::shared_ptr<StatusandControl::wordBitset> words_;
   boost::shared_ptr<HomingState> homing_state_;
 
   std::bitset<16> homing_mask_;
@@ -259,4 +259,4 @@ typedef msm::back::state_machine<HomingSM_> HomingSM;
 /// */
 ///
 ///
-#endif // HOMING_H
+#endif // HOMING_MODE_H

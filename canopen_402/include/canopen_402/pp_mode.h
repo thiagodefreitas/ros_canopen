@@ -53,15 +53,16 @@
  *
  ****************************************************************/
 
-#ifndef IP_MODE_H
-#define IP_MODE_H
+#ifndef pp_MODE_H
+#define pp_MODE_H
+
 #include <canopen_402/status_and_control.h>
 ///////
 /// \brief m
 ///
 ///
 ///
-// the ip mode state machine
+// the pp mode state machine
 namespace msm = boost::msm;
 namespace mpl = boost::mpl;
 
@@ -71,17 +72,14 @@ using namespace boost::msm::front;
 
 namespace canopen
 {
-class IPModeSM_ : public msm::front::state_machine_def<IPModeSM_>
+class ppModeSM_ : public msm::front::state_machine_def<ppModeSM_>
 {
 public:
-  IPModeSM_(){}
-  IPModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, const boost::shared_ptr<ObjectStorage> &storage) : words_(words), storage_(storage)
+  ppModeSM_(){}
+  ppModeSM_(const boost::shared_ptr<StatusandControl::wordBitset> &words, boost::shared_ptr<ObjectStorage> &storage) : words_(words), storage_(storage)
   {
-    storage_->entry(ip_mode_sub_mode, 0x60C0);
-    storage_->entry(target_interpolated_position, 0x60C1, 0x01);
-
-    if (ip_mode_sub_mode.get_cached() == -1)
-      storage_->entry(target_interpolated_velocity, 0x60C1, 0x02);
+    storage_->entry(target_position, 0x607A);
+    storage_->entry(profile_velocity, 0x6081);
   }
   struct enable {};
   struct disable {};
@@ -98,34 +96,25 @@ public:
   };
 
   template <class Event,class FSM>
-  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: IPMode" << std::endl;*/}
+  void on_entry(Event const&,FSM& ) {/*std::cout << "entering: ppMode" << std::endl;*/}
   template <class Event,class FSM>
-  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: IPMode" << std::endl;*/}
+  void on_exit(Event const&,FSM& ) {/*std::cout << "leaving: ppMode" << std::endl;*/}
 
   // The list of FSM states
   struct Inactive : public msm::front::state<>
   {
     template <class Event,class FSM>
-    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: ppInactive" << std::endl;*/}
     template <class Event,class FSM>
-    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
-
-  };
-
-  struct updateTarget : public msm::front::state<>
-  {
-    template <class Event,class FSM>
-    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
-    template <class Event,class FSM>
-    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: ppInactive" << std::endl;*/}
 
   };
   struct Active : public msm::front::state<>
   {
     template <class Event,class FSM>
-    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPActive" << std::endl;*/}
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: ppInactive" << std::endl;*/}
     template <class Event,class FSM>
-    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPActive" << std::endl;*/}
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: ppInactive" << std::endl;*/}
   };
 
   // The list of FSM states
@@ -145,6 +134,15 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: modeSelected" << std::endl;*/}
   };
 
+  struct updateTarget : public msm::front::state<>
+  {
+    template <class Event,class FSM>
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: IPInactive" << std::endl;*/}
+    template <class Event,class FSM>
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: IPInactive" << std::endl;*/}
+
+  };
+
   // the initial state. Must be defined
   typedef mpl::vector<modeDeselected,updateTarget> initial_state;
   // transition actions
@@ -152,19 +150,17 @@ public:
   {
     words_->control_word.reset(CW_Halt);
 
+
     words_->control_word.set(CW_Operation_mode_specific0);
     words_->control_word.reset(CW_Operation_mode_specific1);
     words_->control_word.reset(CW_Operation_mode_specific2);
-  }
-
-  template <class setTarget> void set_target(setTarget const& evt)
-  {
-    target_interpolated_position.set(evt.target_pos);
-    if (ip_mode_sub_mode.get_cached() == -1)
-      target_interpolated_velocity.set(evt.target_vel);
+    std::cout << "ppMode::enable_pp\n";
   }
   void disable_mode(disable const&)
   {
+    words_->control_word.set(CW_Halt);
+
+
     words_->control_word.reset(CW_Operation_mode_specific0);
     words_->control_word.reset(CW_Operation_mode_specific1);
     words_->control_word.reset(CW_Operation_mode_specific2);
@@ -172,39 +168,43 @@ public:
 
   void select_mode(selectMode const&)
   {
-    words_->control_word.reset(CW_Halt);
+    words_->control_word.set(CW_Halt);
 
-    words_->control_word.reset(CW_Operation_mode_specific0);
-    words_->control_word.reset(CW_Operation_mode_specific1);
-    words_->control_word.reset(CW_Operation_mode_specific2);
+    //    std::cout << "ppMode::selectMode\n";
   }
   void deselect_mode(deselectMode const&)
   {
+    words_->control_word.set(CW_Halt);
+
     words_->control_word.reset(CW_Operation_mode_specific0);
     words_->control_word.reset(CW_Operation_mode_specific1);
     words_->control_word.reset(CW_Operation_mode_specific2);
   }
+
+  template <class setTarget> void set_target(setTarget const& evt)
+  {
+    target_position.set(evt.target_pos);
+  }
   // guard conditions
 
-  typedef IPModeSM_ ip; // makes transition table cleaner
-  // Transition table for IPMode
+  typedef ppModeSM_ pp; // makes transition table cleaner
+  // Transition table for ppMode
   struct transition_table : mpl::vector<
       //      Start     Event         Next      Action               Guard
       //    +---------+-------------+---------+---------------------+----------------------+
-      a_row < modeDeselected   , selectMode    , modeSelected   , &ip::select_mode                       >,
+      a_row < modeDeselected   , selectMode    , modeSelected   , &pp::select_mode                       >,
 
       Row < modeSelected   , none    , Inactive   , none, none                       >,
-      a_row < modeSelected   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
+      a_row < modeSelected   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
 
-      a_row < Active   , disable, Inactive   , &ip::disable_mode                      >,
-      a_row < Active   , enable    , Active   , &ip::enable_mode                       >,
-      a_row < Active   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
+      a_row < Active   , disable, Inactive   , &pp::disable_mode                      >,
+      a_row < Active   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
 
-      a_row < Inactive   , enable    , Active   , &ip::enable_mode                       >,
-      a_row < Inactive   , deselectMode    , modeDeselected   , &ip::deselect_mode                       >,
+      a_row < Inactive   , enable    , Active   , &pp::enable_mode                       >,
+      a_row < Inactive   , deselectMode    , modeDeselected   , &pp::deselect_mode                       >,
       //    +---------+-------------+---------+---------------------+----------------------+
       //    +---------+-------------+---------+---------------------+----------------------+
-      a_row < updateTarget   , setTarget    , updateTarget   , &ip::set_target                       >
+      a_row < updateTarget   , setTarget    , updateTarget   , &pp::set_target                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.
@@ -218,16 +218,16 @@ private:
   boost::shared_ptr<StatusandControl::wordBitset> words_;
   boost::shared_ptr<ObjectStorage> storage_;
 
-  canopen::ObjectStorage::Entry<int16_t>  ip_mode_sub_mode;
+  canopen::ObjectStorage::Entry<int32_t> target_position;
+  canopen::ObjectStorage::Entry<uint32_t> profile_velocity;
 
-  canopen::ObjectStorage::Entry<int32_t> target_interpolated_position;
-  canopen::ObjectStorage::Entry<int32_t> target_interpolated_velocity;
 
 };
 // back-end
-typedef msm::back::state_machine<IPModeSM_> IPModeSM;
+typedef msm::back::state_machine<ppModeSM_> ppModeSM;
 };
 /// */
 ///
 ///
-#endif // IP_MODE_H
+///
+#endif // pp_MODE_H

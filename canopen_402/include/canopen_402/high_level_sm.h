@@ -67,9 +67,9 @@
 #include <canopen_402/enums_402.h>
 #include <canopen_402/internal_sm.h>
 #include <canopen_402/status_and_control.h>
-#include <canopen_402/ip_mode.h>
-#include <canopen_402/homing.h>
+#include <canopen_402/mode_switch.h>
 #include <boost/thread/thread.hpp>
+#include <canopen_master/canopen.h>
 
 namespace msm = boost::msm;
 namespace mpl = boost::mpl;
@@ -83,18 +83,56 @@ class highLevelSM_ : public msm::front::state_machine_def<highLevelSM_>
 {
 public:
   highLevelSM_(){}
-  highLevelSM_(const boost::shared_ptr<cw_word> &control_word,const boost::shared_ptr<sw_word> &status_word,  boost::shared_ptr<StatusandControl::commandTargets> target, boost::shared_ptr<OperationMode> operation_mode, const boost::shared_ptr<InternalState> &actual_state)
-    : control_word_(control_word) , status_word_(status_word), targets_(target), operation_mode_(operation_mode), state_(actual_state), previous_mode_(No_Mode)
+  highLevelSM_(boost::shared_ptr<StatusandControl::wordBitset> &words,  boost::shared_ptr<StatusandControl::commandTargets> target,boost::shared_ptr<StatusandControl::motorFeedback> feedback, boost::shared_ptr<ObjectStorage> &storage)
+    : words_(words), targets_(target), motor_feedback_(feedback), previous_mode_(No_Mode), storage_(storage), old_pos_(0)
   {
-    motorStateMachine = motorSM(control_word_, state_);
+    ///////////////////*
+    ///
+    ///
+    ///
+    storage_->entry(op_mode, 0x6060);
+    storage_->entry(supported_drive_modes, 0x6502);
+
+    storage_->entry(homing_method, 0x6098);
+
+    supported_modes_ = supported_drive_modes.get_cached();
+
+    motorStateMachine = motorSM(words_, motor_feedback_);
     motorStateMachine.start();
     motorStateMachine.process_event(motorSM::boot());
 
-    homingMachine = HomingSM(control_word_, status_word_);
-    homingMachine.start();
+    if(isSupported(Homing))
+    {
+      homingModeMachine_ = boost::make_shared<HomingSM>(HomingSM(words_));
+      homingModeMachine_->start();
+    }
 
-    ipModeMachine = IPMode(control_word_);
-    ipModeMachine.start();
+    if(isSupported(Velocity))
+    {
+      velModeMachine_ = boost::make_shared<velModeSM>(velModeSM(words_, storage_));
+      velModeMachine_->start();
+    }
+
+    if(isSupported(Interpolated_Position))
+    {
+      ipModeMachine_ = boost::make_shared<IPModeSM>(IPModeSM(words_, storage_));
+      ipModeMachine_->start();
+    }
+
+    if(isSupported(Profiled_Position))
+    {
+      ppModeMachine_ = boost::make_shared<ppModeSM>(ppModeSM(words_, storage_));
+      ppModeMachine_->start();
+    }
+
+    if(isSupported(Profiled_Velocity))
+    {
+      pvModeMachine_ = boost::make_shared<pvModeSM>(pvModeSM(words_, storage_));
+      pvModeMachine_->start();
+    }
+
+    modeSwitchMachine = ModeSwitchSM(ipModeMachine_, velModeMachine_, homingModeMachine_, pvModeMachine_, ppModeMachine_);
+    modeSwitchMachine.start();
   }
   struct startMachine {};
   struct stopMachine {};
@@ -115,13 +153,21 @@ public:
   };
   struct enableMove
   {
-    OperationMode op_mode;
     double pos;
     double vel;
 
-    enableMove() : op_mode(OperationMode(0)), pos(0), vel(0) {}
-    enableMove( OperationMode mode, double pos, double vel) : op_mode(mode), pos(pos), vel(vel) {}
+    enableMove() : pos(0), vel(0) {}
+    enableMove(double pos) : pos(pos), vel(0) {}
+    enableMove( double pos, double vel) : pos(pos), vel(vel) {}
   };
+
+  struct checkModeSupport
+  {
+    OperationMode op_mode;
+
+    checkModeSupport( OperationMode mode) : op_mode(mode) {}
+  };
+
   struct runMotorSM
   {
     InternalActions action;
@@ -133,8 +179,7 @@ public:
   };
 
   motorSM motorStateMachine;
-  IPMode ipModeMachine;
-  HomingSM homingMachine;
+  ModeSwitchSM modeSwitchMachine;
 
   // The list of FSM states
   struct StartUp : public msm::front::state<>
@@ -187,7 +232,29 @@ public:
   // transition actions
   void standby(enterStandBy const&)
   {
-    //    std::cout << "OnSm::standby" << std::endl;
+    targets_->target_pos = motor_feedback_->actual_pos;
+    targets_->target_vel = 0;
+
+
+    if(isSupported(Velocity))
+    {
+      velModeMachine_->process_event(velModeSM::setTarget(targets_->target_vel));
+    }
+
+    if(isSupported(Interpolated_Position))
+    {
+      ipModeMachine_->process_event(IPModeSM::setTarget(targets_->target_pos, targets_->target_vel));
+    }
+
+    if(isSupported(Profiled_Position))
+    {
+      ppModeMachine_->process_event(ppModeSM::setTarget(targets_->target_pos));
+    }
+
+    if(isSupported(Profiled_Velocity))
+    {
+      pvModeMachine_->process_event(pvModeSM::setTarget(targets_->target_vel));
+    }
   }
 
 
@@ -196,87 +263,191 @@ public:
     switch(evt.action)
     {
     case QuickStop:
-      ipModeMachine.process_event(IPMode::deselectMode());
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       motorStateMachine.process_event(motorSM::quick_stop());
-      if(*state_ != Quick_Stop_Active)
+      if(motor_feedback_->state != Quick_Stop_Active)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case FaultReset:
       motorStateMachine.process_event(motorSM::fault_reset());
-      if(*state_ == Fault)
+      if(motor_feedback_->state == Fault)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case ShutdownMotor:
       motorStateMachine.process_event(motorSM::shutdown());
-      if(*state_ != Ready_To_Switch_On)
+      if(motor_feedback_->state != Ready_To_Switch_On)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case SwitchOn:
       motorStateMachine.process_event(motorSM::switch_on());
-      if(*state_ != Switched_On)
+      if(motor_feedback_->state != Switched_On)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case EnableOp:
       motorStateMachine.process_event(motorSM::enable_op());
-      if(*state_ != Operation_Enable)
+      if(motor_feedback_->state != Operation_Enable)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case FaultEnable:
-      ipModeMachine.process_event(IPMode::deselectMode());
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       motorStateMachine.process_event(motorSM::fault());
-      if(*state_ != Fault)
+      if(motor_feedback_->state != Fault)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     case DisableQuickStop:
       motorStateMachine.process_event(motorSM::disable_voltage());
-      if(*state_ != Not_Ready_To_Switch_On && *state_ != Switch_On_Disabled)
+      if(motor_feedback_->state != Not_Ready_To_Switch_On && motor_feedback_->state != Switch_On_Disabled)
         BOOST_THROW_EXCEPTION(std::invalid_argument("The transition was not successful"));
       break;
 
     default:
-      std::cout << "Action not specified" << std::endl;
+      BOOST_THROW_EXCEPTION(std::invalid_argument("Action not specified"));
     }
   }
 
   template <class checkModeSwitch> void mode_switch(checkModeSwitch const& evt)
   {
-    if(*operation_mode_ != evt.op_mode)
+    if(motor_feedback_->current_mode != evt.op_mode && evt.op_mode != No_Mode)
     {
+      previous_mode_ = motor_feedback_->current_mode;
+      op_mode.set_cached(evt.op_mode);
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       BOOST_THROW_EXCEPTION(std::invalid_argument("This operation mode can not be used"));
-      previous_mode_ = *operation_mode_;
     }
 
     switch(evt.op_mode)
     {
-    case Interpolated_Position:
-      ipModeMachine.process_event(IPMode::selectMode());
+    bool transition_sucess;
+    case No_Mode:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
       break;
+
+    case Interpolated_Position:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectIP());
+      break;
+
+    case Velocity:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectVel());
+      break;
+
+    case Profiled_Velocity:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectPV());
+      break;
+
+    case Profiled_Position:
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectPP());
+      break;
+
     case Homing:
-      homingMachine.process_event(HomingSM::selectMode());
-      bool transition_sucess = homingMachine.process_event(HomingSM::runHomingCheck());
+      if (!homing_method.valid() && homing_method.get() == 0)
+      {
+        BOOST_THROW_EXCEPTION(std::invalid_argument("Homing invalid"));
+      }
+      modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
+      modeSwitchMachine.process_event(ModeSwitchSM::selectHoming());
+      transition_sucess = homingModeMachine_->process_event(HomingSM::runHomingCheck());
       if(!transition_sucess)
       {
         BOOST_THROW_EXCEPTION(std::invalid_argument("Homing still not completed"));
       }
       break;
+
+    default:
+      BOOST_THROW_EXCEPTION(std::invalid_argument("Mode not supported"));
+      break;
     }
+  }
+
+  bool isSupported(const OperationMode &op_mode)
+  {
+    uint32_t masked_mode;
+    bool supported;
+
+    switch(op_mode)
+    {
+    case Profiled_Position:
+    case Velocity:
+    case Profiled_Velocity:
+    case Profiled_Torque:
+    case Interpolated_Position:
+    case Cyclic_Synchronous_Position:
+    case Cyclic_Synchronous_Velocity:
+    case Cyclic_Synchronous_Torque:
+    case Homing:
+      masked_mode = (1<<(op_mode-1));
+      break;
+    case No_Mode:
+    default:
+      masked_mode = 0;
+      break;
+    }
+
+    supported = supported_modes_ & masked_mode;
+
+    return supported;
+  }
+
+  template <class checkModeSupport> void check_support(checkModeSupport const& evt)
+  {
+    bool supported = isSupported(evt.op_mode);
+
+    if(!supported)
+      BOOST_THROW_EXCEPTION(std::invalid_argument("Mode not supported"));
   }
 
   template <class enableMove> void move(enableMove const& evt)
   {
-    //    std::cout << "OnSm::drive" << std::endl;
-    switch(evt.op_mode)
+    switch(motor_feedback_->current_mode)
     {
     case Interpolated_Position:
-      ipModeMachine.process_event(IPMode::selectMode());
+      //      std::cout << "move IP:" << ipModeMachine_->current_state()[0] <<  std::endl;
+      //      std::cout << "mode machine State:" << modeSwitchMachine.current_state()[0] <<  std::endl;
+      ipModeMachine_->process_event(IPModeSM::selectMode());
+      ipModeMachine_->process_event(IPModeSM::enable());
+      ipModeMachine_->process_event(IPModeSM::setTarget(evt.pos, evt.vel));
+      break;
 
-      ipModeMachine.process_event(IPMode::enableIP());
+    case Velocity:
+      velModeMachine_->process_event(velModeSM::selectMode());
+      velModeMachine_->process_event(velModeSM::enable());
+      velModeMachine_->process_event(velModeSM::setTarget(evt.vel));
+      break;
+
+    case Homing:
+      homingModeMachine_->process_event(HomingSM::enable());
+      homingModeMachine_->current_state();
+      break;
+
+    case Profiled_Position:
+      ppModeMachine_->process_event(ppModeSM::selectMode());
+      if(evt.pos != old_pos_)
+      {
+        ppModeMachine_->process_event(ppModeSM::setTarget(evt.pos));
+        ppModeMachine_->process_event(ppModeSM::enable());
+      }
+      else
+        ppModeMachine_->process_event(ppModeSM::disable());
+      old_pos_ = evt.pos;
+      break;
+
+    case Profiled_Velocity:
+      pvModeMachine_->process_event(pvModeSM::selectMode());
+      pvModeMachine_->process_event(pvModeSM::enable());
+      pvModeMachine_->process_event(pvModeSM::setTarget(evt.vel));
+      break;
+
+    default:
+      BOOST_THROW_EXCEPTION(std::invalid_argument("Mode not supported"));
     }
   }
 
@@ -302,12 +473,19 @@ public:
     void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: On" << std::endl;*/}
   };
 
+  struct isModeSupported : public msm::front::state<>
+  {
+    template <class Event,class FSM>
+    void on_entry(Event const&,FSM& ) {/*std::cout << "starting: On" << std::endl;*/}
+    template <class Event,class FSM>
+    void on_exit(Event const&,FSM& ) {/*std::cout << "finishing: On" << std::endl;*/}
+  };
+
   // the initial state. Must be defined
-  typedef machineStopped initial_state;
+  typedef mpl::vector<machineStopped,isModeSupported>  initial_state;
   // transition actions
   void start_machine(startMachine const&)
   {
-    //    std::cout << "highLevelSm::turn_on\n";
   }
 
   void update_motor(updateMotor const&)
@@ -323,8 +501,7 @@ public:
 
   void stop_machine(stopMachine const&)
   {
-    ipModeMachine.process_event(IPMode::disableIP());
-    ipModeMachine.process_event(IPMode::deselectMode());
+    modeSwitchMachine.process_event(ModeSwitchSM::deactivateMode(previous_mode_));
   }
   // guard conditions
 
@@ -345,17 +522,20 @@ public:
       a_row < ModeSwitch   , runMotorSM, updateMotorSM   , &hl::motor_sm                     >,
       a_row < ModeSwitch   , enterStandBy, Standby   , &hl::standby                      >,
       a_row < ModeSwitch   , stopMachine, machineStopped   , &hl::stop_machine                      >,
-      a_row < ModeSwitch   , updateSwitch, ModeSwitch   , &hl::update_switch                      >,
-
+      a_row < ModeSwitch   , checkModeSwitch, ModeSwitch   , &hl::mode_switch                      >,
+      a_row < ModeSwitch   , enableMove, Move   , &hl::move                     >,
 
       a_row < updateMotorSM   , checkModeSwitch    , ModeSwitch   , &hl::mode_switch                       >,
       a_row < updateMotorSM   , enterStandBy, Standby   , &hl::standby                      >,
       a_row < updateMotorSM   , enableMove, Move   , &hl::move                     >,
       a_row < updateMotorSM   , stopMachine, machineStopped   , &hl::stop_machine                      >,
-      a_row < updateMotorSM   , updateMotor, updateMotorSM   , &hl::update_motor                      >,
+      a_row < updateMotorSM   , runMotorSM, updateMotorSM   , &hl::motor_sm                      >,
 
       a_row < Move   , enterStandBy, Standby   , &hl::standby                      >,
-      a_row < Move   , stopMachine, machineStopped   , &hl::stop_machine                      >
+      a_row < Move   , stopMachine, machineStopped   , &hl::stop_machine                      >,
+      a_row < Move   , enableMove, Move   , &hl::move                      >,
+      //    +---------+-------------+---------+---------------------+----------------------+
+      a_row < isModeSupported   , checkModeSupport    , isModeSupported   , &hl::check_support                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.
@@ -373,19 +553,31 @@ public:
   }
 
 private:
-  boost::shared_ptr<InternalState> state_;
-  boost::shared_ptr<InternalState> target_state_;
-
-  boost::shared_ptr<cw_word> control_word_;
-  boost::shared_ptr<cw_word> status_word_;
+  boost::shared_ptr<StatusandControl::wordBitset> words_;
 
   boost::shared_ptr<double> target_pos_;
   boost::shared_ptr<double> target_vel_;
-  boost::shared_ptr<OperationMode> operation_mode_;
+  double old_pos_;
 
   boost::shared_ptr<StatusandControl::commandTargets> targets_;
+  boost::shared_ptr<StatusandControl::motorFeedback> motor_feedback_;
   OperationMode previous_mode_;
 
+  boost::shared_ptr<IPModeSM> ipModeMachine_;
+  boost::shared_ptr<HomingSM> homingModeMachine_;
+  boost::shared_ptr<velModeSM> velModeMachine_;
+  boost::shared_ptr<ppModeSM> ppModeMachine_;
+  boost::shared_ptr<pvModeSM> pvModeMachine_;
+
+  boost::shared_ptr<ObjectStorage> storage_;
+
+  canopen::ObjectStorage::Entry<int8_t>  op_mode;
+
+  canopen::ObjectStorage::Entry<uint32_t>  supported_drive_modes;
+
+  canopen::ObjectStorage::Entry<int8_t>  homing_method;
+
+  uint32_t supported_modes_;
 };
 // back-end
 typedef msm::back::state_machine<highLevelSM_> highLevelSM;

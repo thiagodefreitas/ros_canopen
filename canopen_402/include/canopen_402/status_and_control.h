@@ -62,6 +62,7 @@
 #include <boost/msm/back/state_machine.hpp>
 #include <boost/msm/front/state_machine_def.hpp>
 #include <boost/msm/front/functor_row.hpp>
+#include <canopen_master/canopen.h>
 
 namespace msm = boost::msm;
 namespace mpl = boost::mpl;
@@ -75,15 +76,41 @@ using namespace boost::msm::front;
 // the status and control state machine
 namespace canopen
 {
-typedef std::bitset<16> sw_word;
-typedef std::bitset<16> cw_word;
+typedef std::bitset<16> word_bitset;
 
 class StatusandControl_ : public msm::front::state_machine_def<StatusandControl_>
 {
 public:
-  StatusandControl_(){}
-  StatusandControl_(boost::shared_ptr<sw_word> status_word, boost::shared_ptr<cw_word> control_word, const boost::shared_ptr<InternalState> &state) : status_word_(status_word), control_word_(control_word), state_(state)
+  struct motorFeedback
   {
+    double actual_pos;
+    double actual_vel;
+    double actual_eff;
+    InternalState state;
+    OperationMode current_mode;
+    bool target_reached;
+    motorFeedback() : actual_pos(0), actual_vel(0), actual_eff(0), state(Start), current_mode(No_Mode), target_reached(false){}
+  };
+
+  struct wordBitset
+  {
+    word_bitset status_word;
+    word_bitset control_word;
+
+    wordBitset() : status_word(), control_word() {}
+  };
+
+  StatusandControl_(){}
+  StatusandControl_(const boost::shared_ptr<wordBitset> word_bitset, const boost::shared_ptr<motorFeedback> &motor_feedback,
+                    boost::shared_ptr<ObjectStorage> storage) : word_bitset_(word_bitset), motor_feedback_(motor_feedback), storage_(storage)
+  {
+    storage_->entry(status_word_entry_, 0x6041);
+    storage_->entry(control_word_entry_, 0x6040);
+    storage_->entry(op_mode_display, 0x6061);
+
+    storage_->entry(actual_vel, 0x606C);
+    storage_->entry(actual_pos, 0x6064);
+
     status_word_mask_.set(SW_Ready_To_Switch_On);
     status_word_mask_.set(SW_Switched_On);
     status_word_mask_.set(SW_Operation_enabled);
@@ -101,7 +128,6 @@ public:
     commandTargets(double pos) : target_pos(pos), target_vel(0) {}
     commandTargets(double pos, double vel) : target_pos(pos), target_vel(vel) {}
   };
-
 
   struct newStatusWord {};
   struct newControlWord {};
@@ -143,53 +169,58 @@ public:
   // the initial state. Must be defined
   typedef writeControl initial_state;
   // transition actions
-  void write_control(newStatusWord const&)
+  void write_control(newControlWord const&)
   {
-    // std::cout << "StatusandControl::write_control\n";
-    //std::cout << "STATUS_WRITE:" << (*status_word_.get()) << std::endl;
-    //std::cout << "CONTROL_WRITE:" << (*control_word_.get()) << std::endl;
+    int16_t cw_set = static_cast<int>((word_bitset_->control_word).to_ulong());
+
+    control_word_entry_.set(cw_set);
   }
 
-  boost::shared_ptr<InternalState> getState()
+  void read_status(newStatusWord const&)
   {
-    return state_;
-  }
+    std::bitset<16> sw_new(status_word_entry_.get());
 
-  void read_status(newControlWord const&)
-  {
-    switch (((*status_word_.get()) & status_word_mask_).to_ulong())
+    word_bitset_->status_word = sw_new;
+    switch (((word_bitset_->status_word) & status_word_mask_).to_ulong())
     {
     case 0b0000000:
     case 0b0100000:
-      *state_ = Not_Ready_To_Switch_On;
+      motor_feedback_->state = Not_Ready_To_Switch_On;
       break;
     case 0b1000000:
     case 0b1100000:
-      *state_ = Switch_On_Disabled;
+      motor_feedback_->state =  Switch_On_Disabled;
       break;
     case 0b0100001:
-      *state_ = Ready_To_Switch_On;
+      motor_feedback_->state =  Ready_To_Switch_On;
       break;
     case 0b0100011:
-      *state_ = Switched_On;
+      motor_feedback_->state =  Switched_On;
       break;
     case 0b0100111:
-      *state_ = Operation_Enable;
+      motor_feedback_->state =  Operation_Enable;
       break;
     case 0b0000111:
-      *state_ = Quick_Stop_Active;
+      motor_feedback_->state =  Quick_Stop_Active;
       break;
     case 0b0001111:
     case 0b0101111:
-      *state_ = Fault_Reaction_Active;
+      motor_feedback_->state =  Fault_Reaction_Active;
       break;
     case 0b0001000:
     case 0b0101000:
-      *state_ = Fault;
+      motor_feedback_->state =  Fault;
       break;
     default:
       LOG("Motor currently in an unknown state");
     }
+
+    motor_feedback_->current_mode = (OperationMode) op_mode_display.get();
+    motor_feedback_->actual_vel = actual_vel.get();
+    motor_feedback_->actual_pos = actual_pos.get();
+    motor_feedback_->actual_eff = 0; //Currently,no effort value is directly obtained from the HW
+
+    motor_feedback_->target_reached = word_bitset_->status_word.test(SW_Target_reached); //Currently,no effort value is directly obtained from the HW
   }
   // guard conditions
 
@@ -198,8 +229,10 @@ public:
   struct transition_table : mpl::vector<
       //      Start     Event         Next      Action               Guard
       //    +---------+-------------+---------+---------------------+----------------------+
-      a_row < writeControl   , newStatusWord    , readStatus   , &pl::write_control                       >,
-      a_row < readStatus   , newControlWord, writeControl   , &pl::read_status                       >
+      a_row < writeControl   , newStatusWord    , readStatus   , &pl::read_status                       >,
+      a_row < writeControl   , newControlWord    , writeControl   , &pl::write_control                       >,
+      a_row < readStatus   , newControlWord, writeControl   , &pl::write_control                       >,
+      a_row < readStatus   , newStatusWord, readStatus   , &pl::read_status                       >
       //    +---------+-------------+---------+---------------------+----------------------+
       > {};
   // Replaces the default no-transition response.
@@ -211,10 +244,22 @@ public:
   }
 
 private:
-  boost::shared_ptr<sw_word> status_word_;
-  boost::shared_ptr<cw_word> control_word_;
+  boost::shared_ptr<wordBitset> word_bitset_;
   std::bitset<16> status_word_mask_;
-  boost::shared_ptr<InternalState> state_;
+  boost::shared_ptr<motorFeedback> motor_feedback_;
+
+  canopen::ObjectStorage::Entry<canopen::ObjectStorage::DataType<0x006>::type >  status_word_entry_;
+  canopen::ObjectStorage::Entry<canopen::ObjectStorage::DataType<0x006>::type >  control_word_entry_;
+
+  boost::shared_ptr<ObjectStorage> storage_;
+
+  canopen::ObjectStorage::Entry<int32_t> actual_vel;
+  canopen::ObjectStorage::Entry<int32_t> actual_pos;
+  canopen::ObjectStorage::Entry<int32_t> actual_internal_pos;
+
+  canopen::ObjectStorage::Entry<int8_t>  op_mode_display;
+
+
 };
 // back-end
 typedef msm::back::state_machine<StatusandControl_> StatusandControl;
