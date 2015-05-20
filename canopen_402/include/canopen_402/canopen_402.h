@@ -61,6 +61,8 @@
 #include <string>
 #include <vector>
 
+#define MOTOR_COMMAND_TIMEOUT 2
+
 namespace canopen
 {
 class Node_402 : public canopen::Layer

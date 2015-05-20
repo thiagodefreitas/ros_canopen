@@ -136,6 +136,9 @@ public:
       pvModeMachine_->start();
     }
 
+    //
+    //
+    //
     modeSwitchMachine = ModeSwitchSM(ipModeMachine_, velModeMachine_, homingModeMachine_, pvModeMachine_, ppModeMachine_);
     modeSwitchMachine.start();
   }
@@ -303,7 +306,7 @@ public:
 
     transition_sucess = check_mode_change(evt.op_mode, evt.timeout);
 
-    if(!transition_sucess)
+    if(!transition_sucess && evt.op_mode!=enums402::No_Mode)
     {
       previous_mode_ = statusandControlMachine_->getFeedback()->current_mode;
 

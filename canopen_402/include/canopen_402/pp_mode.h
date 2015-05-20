@@ -208,9 +208,7 @@ public:
       > {};
   // Replaces the default no-transition response.
   template <class FSM,class Event>
-  void no_transition(Event const& e, FSM&,int state)
-  {
-  }
+  void no_transition(Event const& e, FSM&,int state){}
 private:
   boost::shared_ptr<StatusandControl> statusandControlMachine_;
   boost::shared_ptr<ObjectStorage> storage_;
