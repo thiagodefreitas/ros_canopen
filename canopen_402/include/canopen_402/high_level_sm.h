@@ -400,21 +400,22 @@ public:
     boost::mutex::scoped_lock cond_lock(*state_change_mutex_);
     if(!cond_lock)
       return false;
-
+ 
+    if(!fault_reset)
+{
     statusandControlMachine_->updateCommands()->target_internal_state = target_state;
 
     statusandControlMachine_->setStateChangeNeeded();
-
+}
     while(statusandControlMachine_->getFeedback()->state != target_state || fault_reset)
     {
-      if(fault_reset)
-        if(statusandControlMachine_->getFeedback()->state != target_state)
-        {
-          break;
-        }
-
       if(statusandControlMachine_->getStateChangeCondition()->wait_until(cond_lock,t0)  == boost::cv_status::timeout)
       {
+	if(fault_reset)
+        if(statusandControlMachine_->getFeedback()->state != target_state)
+        {
+          return true;
+        }
         return false;
       }
     }
